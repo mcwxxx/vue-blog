@@ -27,6 +27,7 @@ import {
   useXChat,
   theme,
 } from "ant-design-x-vue";
+import { marked } from "marked";
 import { Button, Image, Popover, Space, Spin, message } from "ant-design-vue";
 import { ref, watch, onMounted, computed, h } from "vue";
 
@@ -105,8 +106,6 @@ const inputValue = ref("");
  */
 const [agent] = useXAgent<BubbleDataType>({
   baseURL: "http://47.107.149.197/api/dashscope/completion",
-  model: "qwen-plus",
-  dangerouslyApiKey: "Bearer sk-1128933949a947098841ff76dcfc36ac",
 });
 
 const loading = agent.value.isRequesting();
@@ -167,10 +166,7 @@ watch(
 
 // ==================== Event ====================
 const handleUserSubmit = (val: string) => {
-  onRequest({
-    stream: true,
-    message: { content: val, role: "user" },
-  });
+  onRequest({ stream: true, message: { content: val, role: "user" } });
 
   // session title mock
   if (
@@ -383,6 +379,12 @@ const workareaStyles = computed(() => {
 // ==================== State =================
 const copilotOpen = ref<boolean>(true);
 
+// 配置marked
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
 const roles: (typeof Bubble.List)["roles"] = {
   assistant: {
     placement: "start",
@@ -412,8 +414,24 @@ const roles: (typeof Bubble.List)["roles"] = {
         onClick: () => {},
       }),
     ]),
-    loadingRender: () =>
+    loadingRender: () => () =>
       h(Space, {}, [h(Spin, { size: "small" }, []), AGENT_PLACEHOLDER]),
+    contentRender: (content: string) => {
+      return h("div", {
+        innerHTML: marked(content),
+        style: {
+          "& > *": {
+            margin: "0.5em 0",
+          },
+          "& > *:first-child": {
+            marginTop: 0,
+          },
+          "& > *:last-child": {
+            marginBottom: 0,
+          },
+        },
+      });
+    },
   },
   user: { placement: "end" },
 };

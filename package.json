@@ -16,11 +16,13 @@
     "@tiptap/vue-3": "^2.22.3",
     "ant-design-vue": "^4.2.6",
     "ant-design-x-vue": "^1.2.7",
+    "axios": "^1.10.0",
     "marked": "^15.0.12",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
+    "@types/axios": "^0.9.36",
     "@vitejs/plugin-vue": "^6.0.0",
     "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
