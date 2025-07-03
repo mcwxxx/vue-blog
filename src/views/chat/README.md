@@ -37,15 +37,130 @@
 | items      | 气泡数据列表                                                     | (BubbleProps & { key?: string \| number, role?: string })[]   | -      | -    |
 | roles      | 设置气泡默认属性                                                 | Record<string, BubbleProps> \| (bubble, index) => BubbleProps | -      | -    |
 
-## 代码示例
+## Prompts 组件 API
 
-```vue
+### PromptsProps 属性
+
+| 属性          | 说明           | 类型                                     | 默认值 | 版本 |
+| ------------- | -------------- | ---------------------------------------- | ------ | ---- |
+| classNames    | 自定义样式类名 | Record<SemanticType, string>             | -      | -    |
+| items         | 提示项列表     | PromptProps[]                            | -      | -    |
+| prefixCls     | 样式类名前缀   | string                                   | -      | -    |
+| rootClassName | 根节点样式类名 | string                                   | -      | -    |
+| styles        | 自定义样式     | Record<SemanticType, CSSProperties>      | -      | -    |
+| title         | 提示列表标题   | VNode \| string \| (() => VNode\|string) | -      | -    |
+| vertical      | 是否垂直排列   | boolean                                  | false  | -    |
+| wrap          | 是否自动换行   | boolean                                  | false  | -    |
+| onItemClick   | 点击提示项回调 | (info: { data: PromptProps }) => void    | -      | -    |
+
+### SemanticType 类型
+
+```typescript
+type SemanticType =
+  | "list"
+  | "item"
+  | "content"
+  | "title"
+  | "subList"
+  | "subItem";
+```
+
+### Prompts 插槽
+
+| 插槽名 | 说明         |
+| ------ | ------------ |
+| title  | 提示列表标题 |
+
+### PromptProps 属性
+
+| 属性        | 说明     | 类型            | 默认值 | 版本 |
+| ----------- | -------- | --------------- | ------ | ---- |
+| children    | 子提示项 | PromptProps[]   | -      | -    |
+| description | 提示描述 | VNode \| string | -      | -    |
+| disabled    | 是否禁用 | boolean         | false  | -    |
+| icon        | 提示图标 | VNode           | -      | -    |
+| key         | 唯一标识 | string          | -      | -    |
+| label       | 提示标签 | VNode \| string | -      | -    |
+
+## Prompts 组件示例
+
+````vue
+<script setup lang="ts">
 import {
-  FrownOutlined,
+  BulbOutlined,
+  CheckCircleOutlined,
+  CoffeeOutlined,
+  FireOutlined,
+  InfoCircleOutlined,
+  RocketOutlined,
   SmileOutlined,
-  SyncOutlined,
-  UserOutlined,
-} from '@ant-design/icons-vue';
+  WarningOutlined,
+} from "@ant-design/icons-vue";
+import { Prompts, type PromptsProps } from "ant-design-x-vue";
+import { h } from "vue";
+
+defineOptions({ name: "AXPromptsFlexWrapSetup" });
+
+const items: PromptsProps["items"] = [
+  {
+    key: "1",
+    icon: h(BulbOutlined, { style: { color: "#FFD700" } }),
+    description: "Got any sparks for a new project?",
+  },
+  {
+    key: "2",
+    icon: h(InfoCircleOutlined, { style: { color: "#1890FF" } }),
+    description: "Help me understand the background of this topic.",
+  },
+  {
+    key: "3",
+    icon: h(WarningOutlined, { style: { color: "#FF4D4F" } }),
+    description: "How to solve common issues? Share some tips!",
+  },
+  {
+    key: "4",
+    icon: h(RocketOutlined, { style: { color: "#722ED1" } }),
+    description: "How can I work faster and better?",
+  },
+  {
+    key: "5",
+    icon: h(CheckCircleOutlined, { style: { color: "#52C41A" } }),
+    description: "What are some tricks for getting tasks done?",
+  },
+  {
+    key: "6",
+    icon: h(CoffeeOutlined, { style: { color: "#964B00" } }),
+    description: "How to rest effectively after long hours of work?",
+  },
+  {
+    key: "7",
+    icon: h(SmileOutlined, { style: { color: "#FAAD14" } }),
+    description: "What are the secrets to maintaining a positive mindset?",
+  },
+  {
+    key: "8",
+    icon: h(FireOutlined, { style: { color: "#FF4D4F" } }),
+    description: "How to stay calm under immense pressure?",
+  },
+];
+</script>
+
+<template>
+  <Prompts
+    title="✨ Inspirational Sparks and Marvelous Tips"
+    :items="items"
+    wrap
+  />
+</template>
+
+## 关联问题渲染示例 ```vue
+<script setup lang="ts">
+import { Prompts } from "ant-design-x-vue";
+import { computed } from "vue";
+
+const response = {
+  output: {
+    association: "您可能还想问： \n1. 仁医工程有哪些公益活动？ \n2. 如何参与仁医云培训？ \n3. 仁医云平台功能有哪些优势？",
 import { BubbleList } from 'ant-design-x-vue';
 import { Button, Flex, Space, Spin } from 'ant-design-vue';
 import type { BubbleListProps } from 'ant-design-x-vue';
@@ -114,7 +229,7 @@ const listRef = ref<InstanceType<typeof BubbleList>>(null);
     ]"
   />
 </template>
-```
+````
 
 ## API 集成总结
 

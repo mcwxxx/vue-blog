@@ -2,7 +2,7 @@
  * @Author: masi 2454023350@qq.com
  * @Date: 2025-06-25 15:21:09
  * @LastEditors: masi 2454023350@qq.com
- * @LastEditTime: 2025-07-01 16:39:43
+ * @LastEditTime: 2025-07-03 18:08:53
  * @FilePath: \vue-blog\vite.config.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -22,7 +22,7 @@ export default defineConfig({
       ],
     }),
   ],
-  base: "/", // 使用根路径作为基础路径，支持所有前端路由
+  base: "/", // 恢复根路径
   build: {
     rollupOptions: {
       output: {
@@ -33,7 +33,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 9927,
+    port: 9938,
     strictPort: true,
     proxy: {
       "/api": {

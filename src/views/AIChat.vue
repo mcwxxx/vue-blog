@@ -36,6 +36,10 @@ defineOptions({ name: "PlaygroundCopilotSetup" });
 type BubbleDataType = {
   role: string;
   content: string;
+  association?: Array<{
+    key: string;
+    description: string;
+  }>;
 };
 
 const MOCK_SESSION_LIST = [
@@ -126,66 +130,88 @@ const { messages, onRequest, setMessages } = useXChat({
   },
   transformMessage: (info) => {
     const { originMessage, currentMessage } = info || {};
-    let content = currentMessage?.data || "";
+    let content = "";
+    let association: Array<{ key: string; description: string }> = [];
+    let jsonData: any = null;
+
+    // 处理流式响应
+    if (typeof currentMessage?.data === "string") {
+      try {
+        jsonData = JSON.parse(currentMessage.data);
+        // 优先处理content_aitools字段
+        const contentAitools =
+          jsonData?.output?.text?.content_aitools ||
+          jsonData?.output?.content_aitools;
+
+        if (typeof contentAitools === "string" && contentAitools.trim()) {
+          content = contentAitools;
+        } else if (jsonData?.output?.text?.content) {
+          content = jsonData.output.text.content;
+        } else if (jsonData?.output?.text) {
+          content = jsonData.output.text;
+        } else if (contentAitools) {
+          content = JSON.stringify(contentAitools, null, 2);
+        }
+
+        // 提取关联问题
+        if (jsonData) {
+          const associationText =
+            jsonData?.output?.text?.association ||
+            jsonData?.output?.association;
+          if (associationText) {
+            association = parseAssociationQuestions(associationText);
+          }
+        }
+      } catch (e) {
+        // 如果不是JSON，直接使用原始数据
+        content = currentMessage.data;
+      }
+    }
+
+    // // 设置默认值（仅当content仍为空时）
+    // if (!content.trim()) {
+    //   content = "暂无内容";
+    // }
 
     return {
       content: originMessage?.content
         ? `${originMessage.content}${content}`
         : content,
       role: "assistant",
+      association,
     };
   },
   resolveAbortController: (controller) => {
     abortController.value = controller;
   },
 });
-watch(
-  curSession,
-  () => {
-    if (curSession.value !== undefined) {
-      setMessages(messageHistory.value?.[curSession.value] || []);
-    } else {
-      setMessages([]);
-    }
-  },
-  { immediate: true }
-);
-
-watch(
-  () => messages.value,
-  () => {
-    // history mock
-    if (messages.value?.length) {
-      messageHistory.value = {
-        ...messageHistory.value,
-        [curSession.value]: messages.value,
-      };
-    }
-  }
-);
 
 // ==================== Event ====================
 const handleUserSubmit = (val: string) => {
   onRequest({ stream: true, message: { content: val, role: "user" } });
-
-  // session title mock
-  if (
-    sessionList.value.find((i) => i.key === curSession.value)?.label ===
-    "New session"
-  ) {
-    const tempList = sessionList.value.map((i) =>
-      i.key !== curSession.value ? i : { ...i, label: val?.slice(0, 20) }
-    );
-    sessionList.value = tempList;
-  }
 };
 
-const onPasteFile = (_: File, files: FileList) => {
-  for (const file of Array.from(files)) {
-    attachmentsRef.value?.upload(file);
+// 解析关联问题
+const parseAssociationQuestions = (
+  association: string
+): Array<{ key: string; description: string }> => {
+  if (!association) return [];
+
+  // 匹配类似 "1. 问题内容" 的格式
+  const questionRegex = /\d+\.\s*(.+?)(?=\n\d+\.|\n*$)/g;
+  const matches: RegExpExecArray[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = questionRegex.exec(association)) !== null) {
+    matches.push(match);
   }
-  attachmentsOpen.value = true;
+
+  return matches.map((match, index) => ({
+    key: `assoc-${index}`,
+    description: match[1]?.trim() || "",
+  }));
 };
+
+const setCopilotOpen = (val: boolean) => (copilotOpen.value = val);
 
 const createNewSession = () => {
   if (agent.value.isRequesting()) {
@@ -195,41 +221,24 @@ const createNewSession = () => {
     return;
   }
 
-  if (messages.value?.length) {
-    const timeNow = new Date().getTime().toString();
-    try {
-      abortController.value?.abort();
-    } catch (error) {
-      console.error(error);
-    }
-    // The abort execution will trigger an asynchronous requestFallback, which may lead to timing issues.
-    // In future versions, the sessionId capability will be added to resolve this problem.
-    setTimeout(() => {
-      sessionList.value = [
-        { key: timeNow, label: "New session", group: "Today" },
-        ...sessionList.value,
-      ];
-      curSession.value = timeNow;
-    }, 100);
-  } else {
-    message.error("It is now a new conversation.");
-  }
+  const timeNow = new Date().getTime().toString();
+  sessionList.value = [
+    { key: timeNow, label: "New session", group: "Today" },
+    ...sessionList.value,
+  ];
+  curSession.value = timeNow;
 };
 
 const changeConversation = async (val: string) => {
-  try {
-    abortController.value?.abort();
-  } catch (error) {
-    console.error(error);
-  }
-  // The abort execution will trigger an asynchronous requestFallback, which may lead to timing issues.
-  // In future versions, the sessionId capability will be added to resolve this problem.
-  setTimeout(() => {
-    curSession.value = val;
-  }, 100);
+  curSession.value = val;
 };
 
-const setCopilotOpen = (val: boolean) => (copilotOpen.value = val);
+const onPasteFile = (_: File, files: FileList) => {
+  for (const file of Array.from(files)) {
+    attachmentsRef.value?.upload(file);
+  }
+  attachmentsOpen.value = true;
+};
 
 // ==================== Style ====================
 const { token } = theme.useToken();
@@ -243,7 +252,6 @@ const styles = computed(() => {
       color: token.value.colorText,
       height: "100%",
     },
-    // chatHeader 样式
     chatHeader: {
       height: "52px",
       boxSizing: "border-box",
@@ -271,7 +279,6 @@ const styles = computed(() => {
         paddingInlineStart: 0,
       },
     },
-    // chatList 样式
     chatList: {
       overflow: "auto",
       "padding-block": "16px",
@@ -292,7 +299,6 @@ const styles = computed(() => {
       "background-repeat": "no-repeat",
       "background-position": "bottom",
     },
-    // chatSend 样式
     chatSend: {
       padding: "12px",
     },
@@ -308,75 +314,7 @@ const styles = computed(() => {
     },
   } as const;
 });
-const workareaStyles = computed(() => {
-  return {
-    copilotWrapper: {
-      "min-width": "1000px",
-      display: "flex",
-      height: "100%",
-    },
-    workarea: {
-      flex: 1,
-      background: token.value.colorBgLayout,
-      display: "flex",
-      flexDirection: "column",
-    },
-    workareaHeader: {
-      "box-sizing": "border-box",
-      height: "52px",
-      display: "flex",
-      alignItems: "center",
-      "justify-content": "space-between",
-      padding: "0 48px 0 28px",
-      "border-bottom": `1px solid ${token.value.colorBorder}`,
-    },
-    headerTitle: {
-      "font-weight": 600,
-      "font-size": "15px",
-      color: token.value.colorText,
-      display: "flex",
-      "align-items": "center",
-      gap: "8px",
-    },
-    headerButton: {
-      "background-image": "linear-gradient(78deg, #8054f2 7%, #3895da 95%)",
-      "border-radius": "12px",
-      height: "24px",
-      width: "93px",
-      display: "flex",
-      "align-items": "center",
-      "justify-content": "center",
-      color: "#fff",
-      cursor: "pointer",
-      "font-size": "12px",
-      "font-weight": 600,
-      transition: "all 0.3s",
-      "&:hover": {
-        opacity: 0.8,
-      },
-    },
-    workareaBody: {
-      flex: 1,
-      padding: "16px",
-      background: token.value.colorBgContainer,
-      borderRadius: "16px",
-      minHeight: 0,
-      naxHeight: "calc(100vh - 64px)",
-      overflow: "hidden",
-    },
-    bodyContent: {
-      overflow: "auto",
-      height: "100%",
-      "padding-right": "10px",
-    },
-    bodyText: {
-      color: token.value.colorText,
-      padding: "8px",
-    },
-  } as const;
-});
 
-// ==================== State =================
 const copilotOpen = ref<boolean>(true);
 
 // 配置marked
@@ -389,33 +327,33 @@ const roles: (typeof Bubble.List)["roles"] = {
   assistant: {
     placement: "start",
     footer: h("div", { style: { display: "flex" } }, [
-      h("Button", {
+      h(Button, {
         type: "text",
         size: "small",
         icon: h(ReloadOutlined),
         onClick: () => {},
       }),
-      h("Button", {
+      h(Button, {
         type: "text",
         size: "small",
         icon: h(CopyOutlined),
         onClick: () => {},
       }),
-      h("Button", {
+      h(Button, {
         type: "text",
         size: "small",
         icon: h(LikeOutlined),
         onClick: () => {},
       }),
-      h("Button", {
+      h(Button, {
         type: "text",
         size: "small",
         icon: h(DislikeOutlined),
         onClick: () => {},
       }),
     ]),
-    loadingRender: () => () =>
-      h(Space, {}, [h(Spin, { size: "small" }, []), AGENT_PLACEHOLDER]),
+    loadingRender: () =>
+      h(Space, null, [h(Spin, { size: "small" }), "正在思考中"]),
     contentRender: (content: string) => {
       return h("div", {
         innerHTML: marked(content),
@@ -438,52 +376,11 @@ const roles: (typeof Bubble.List)["roles"] = {
 </script>
 
 <template>
-  <div :style="workareaStyles.copilotWrapper">
-    <!-- 左侧工作区 -->
-    <!-- <div :style="workareaStyles.workarea">
-      <div :style="workareaStyles.workareaHeader">
-        <div :style="workareaStyles.headerTitle">
-          <img
-            src="https://mdn.alipayobjects.com/huamei_iwk9zp/afts/img/A*eco6RrQhxbMAAAAAAAAAAAAADgCCAQ/original"
-            :draggable="false"
-            alt="logo"
-            :width="20"
-            :height="20"
-          />
-          仁医云
-        </div>
-        <div
-          v-if="!copilotOpen"
-          :style="workareaStyles.headerButton"
-          @click="setCopilotOpen(true)"
-        >
-          ✨ AI Copilot
-        </div>
-      </div>
-
-      <div
-        :style="{
-          ...workareaStyles.workareaBody,
-          margin: copilotOpen ? '16px' : '16px 48px',
-        }"
-      >
-        <div :style="workareaStyles.bodyContent">
-          <Image
-            src="https://mdn.alipayobjects.com/huamei_iwk9zp/afts/img/A*48RLR41kwHIAAAAAAAAAAAAADgCCAQ/fmt.webp"
-            :preview="false"
-          />
-          <div :style="workareaStyles.bodyText">
-            <h4>What is the RICH design paradigm?</h4>
-          </div>
-        </div>
-      </div>
-    </div> -->
-    <!-- 右侧对话区 -->
+  <div :style="{ display: 'flex', height: '100%', minWidth: '1000px' }">
     <div
       :style="{ ...styles.copilotChat, display: copilotOpen ? 'flex' : 'none' }"
     >
       <!-- 对话区 - header -->
-      <!-- {chatHeader} -->
       <div :style="styles.chatHeader">
         <div :style="styles.headerTitle">✨ AI Copilot</div>
         <Space :size="0">
@@ -531,24 +428,56 @@ const roles: (typeof Bubble.List)["roles"] = {
       </div>
       <!-- 对话区 - 消息列表 -->
       <div :style="styles.chatList">
-        <Bubble.List
-          v-if="messages?.length"
-          :style="{ height: '100%', paddingInline: '16px' }"
-          :items="
-            messages?.map((i) => ({
-              ...i.message,
-              styles: {
-                content: i.status === 'loading' ? styles.loadingMessage : {},
-              },
-              loading: i.status === 'loading',
-              typing:
-                i.status === 'loading'
-                  ? { step: 5, interval: 20, suffix: h('span', '💗') }
-                  : false,
-            }))
-          "
-          :roles="roles"
-        />
+        <div v-if="messages?.length">
+          <Bubble.List
+            :style="{ height: '100%', paddingInline: '16px' }"
+            :items="
+              messages?.map((i) => ({
+                ...i.message,
+                styles: {
+                  content:
+                    i.message.role === 'assistant' && i.status !== 'success'
+                      ? styles.loadingMessage
+                      : {},
+                },
+                loading:
+                  i.message.role === 'assistant' && i.status !== 'success',
+                typing:
+                  i.message.role === 'assistant' && i.status !== 'success'
+                    ? { step: 5, interval: 20, suffix: h('span', '💗') }
+                    : false,
+              }))
+            "
+            :roles="roles"
+          />
+
+          <!-- 在每条AI消息后显示关联问题 -->
+          <template v-for="(msg, index) in messages" :key="`assoc-${index}`">
+            <div
+              v-if="
+                msg.message.role === 'assistant' &&
+                msg.message.association?.length
+              "
+            >
+              <Prompts
+                vertical
+                :title="() => '您可能还想问：'"
+                :items="msg.message.association"
+                :style="{
+                  'margin-inline': '16px',
+                  'margin-top': '16px',
+                }"
+                :styles="{
+                  title: { fontSize: 14, color: '#333', fontWeight: 'bold' },
+                }"
+                @item-click="
+                  (info) =>
+                    handleUserSubmit(String(info?.data?.description || ''))
+                "
+              />
+            </div>
+          </template>
+        </div>
         <template v-else>
           <Welcome
             variant="borderless"
@@ -574,7 +503,6 @@ const roles: (typeof Bubble.List)["roles"] = {
       </div>
 
       <!-- 对话区 - 输入框 -->
-      <!-- {chatSender} -->
       <div :style="styles.chatSend">
         <div :style="styles.sendAction">
           <Button
@@ -596,7 +524,6 @@ const roles: (typeof Bubble.List)["roles"] = {
           <Button :icon="h(AppstoreAddOutlined)"> More </Button>
         </div>
         <!-- 输入框 -->
-
         <Suggestion
           :items="MOCK_SUGGESTIONS"
           @select="(itemVal) => (inputValue = `[${itemVal}]:`)"
@@ -687,4 +614,3 @@ const roles: (typeof Bubble.List)["roles"] = {
     </div>
   </div>
 </template>
-```
