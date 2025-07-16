@@ -26,21 +26,51 @@ import {
   useXAgent,
   useXChat,
   theme,
+  type MessageStatus as XMessageStatus,
 } from "ant-design-x-vue";
 import { marked } from "marked";
 import { Button, Image, Popover, Space, Spin, message } from "ant-design-vue";
-import { ref, watch, onMounted, computed, h } from "vue";
+import { ref, watch, onMounted, computed, h, type ComputedRef } from "vue";
 
 defineOptions({ name: "PlaygroundCopilotSetup" });
+
+type MessageStatus = XMessageStatus;
 
 type BubbleDataType = {
   role: string;
   content: string;
+  status?: MessageStatus;
   association?: Array<{
     key: string;
     description: string;
   }>;
+  debugLoading?: boolean;
+  debugRole?: string;
+  debugStatus?: string;
+  debugStreaming?: boolean;
+  variant?: "filled" | "outlined" | undefined;
+  typing?: boolean;
+  loading?: boolean;
+  loadingRender?: () => any;
+  styles?: {
+    content?: {
+      [key: string]: string | undefined;
+      "background-image"?: string;
+      "background-size"?: string;
+      "background-repeat"?: string;
+      "background-position"?: string;
+    };
+  };
+  output?: {
+    text?: string;
+  };
 };
+
+interface MessageInfo<T> {
+  id: string;
+  message: T;
+  status: MessageStatus;
+}
 
 const MOCK_SESSION_LIST = [
   {
@@ -109,77 +139,279 @@ const inputValue = ref("");
  * 🔔 Please replace the BASE_URL, PATH, MODEL, API_KEY with your own values.
  */
 const [agent] = useXAgent<BubbleDataType>({
-  baseURL: "http://39.96.193.106/api/dashscope/completion",
+  baseURL: "http://39.96.193.106:3000/api/dashscope/completion",
 });
 
-const loading = agent.value.isRequesting();
+const isLoading = ref(false);
 
-const { messages, onRequest, setMessages } = useXChat({
+const bubbleItems = computed(() => {
+  return messages.value?.map((i) => ({
+    role: i.message.role,
+    content: i.message.content,
+    association: i.message.association,
+    status: i.status,
+    styles: {
+      content:
+        i.message.role === "assistant" && i.status !== "success"
+          ? styles.value.loadingMessage
+          : {},
+    },
+    loading:
+      i.message.role === "assistant" &&
+      i.status === "loading" &&
+      isLoading.value,
+    debugLoading: true,
+    debugRole: i.message.role,
+    debugStatus: i.status,
+    debugStreaming: isLoading.value,
+    debugInfo: {
+      role: i.message.role,
+      status: i.status,
+      isLoading: isLoading.value,
+      content: i.message.content,
+      timestamp: new Date().toISOString(),
+    },
+    variant: (i.message.role === "assistant" &&
+    i.status === "loading" &&
+    isLoading.value
+      ? "filled"
+      : undefined) as "filled" | "outlined" | undefined,
+    loadingRender:
+      i.message.role === "assistant" &&
+      i.status === "loading" &&
+      isLoading.value
+        ? () => {
+            console.log(
+              "显示加载状态，当前消息状态:",
+              i.status,
+              "全局loading:",
+              isLoading.value
+            );
+            return h(Space, null, [
+              h(Spin, { size: "small" }),
+              "正在思考中...",
+            ]);
+          }
+        : undefined,
+  })) satisfies BubbleDataType[];
+}) as ComputedRef<BubbleDataType[]>;
+
+watch(
+  () => agent.value.isRequesting(),
+  (requesting) => {
+    console.groupCollapsed("Agent Request State Change");
+    console.log("New requesting state:", requesting);
+    console.log("Previous isLoading state:", isLoading.value);
+    console.log("Messages:", JSON.parse(JSON.stringify(messages.value)));
+    console.log("Bubble Items:", JSON.parse(JSON.stringify(bubbleItems.value)));
+    console.groupEnd();
+
+    isLoading.value = requesting;
+
+    console.groupCollapsed("After State Update");
+    console.log("Current messages:", messages.value);
+    console.log("Current bubbleItems:", bubbleItems.value);
+    console.log(
+      "Messages with loading states:",
+      messages.value?.filter((m) => m.status === "loading")
+    );
+    console.groupEnd();
+  }
+);
+
+const { messages, onRequest, setMessages } = useXChat<BubbleDataType>({
   agent: agent.value,
   requestFallback: (_, { error }) => {
     if (error.name === "AbortError") {
       return {
         content: "Request is aborted",
         role: "assistant",
+        status: "error",
       };
     }
     return {
       content: "Request failed, please try again!",
       role: "assistant",
+      status: "error",
     };
   },
-  transformMessage: (info) => {
-    const { originMessage, currentMessage } = info || {};
+  transformMessage: (info: {
+    originMessage?: { content?: string; role?: string };
+    currentMessage?: any;
+    isStreaming?: boolean;
+  }) => {
+    const originMessage = info?.originMessage || {};
+    const currentMessage = info?.currentMessage || {};
     let content = "";
     let association: Array<{ key: string; description: string }> = [];
-    let jsonData: any = null;
+    let status = info?.isStreaming ? "loading" : "success";
+    console.log(currentMessage, "我的打印");
+    try {
+      console.groupCollapsed("Processing server response");
+      console.log("Original currentMessage:", currentMessage);
+      console.log(
+        "Full response structure:",
+        JSON.stringify(currentMessage, null, 2)
+      );
 
-    // 处理流式响应
-    if (typeof currentMessage?.data === "string") {
-      try {
-        jsonData = JSON.parse(currentMessage.data);
-        // 优先处理content_aitools字段
-        const contentAitools =
-          jsonData?.output?.text?.content_aitools ||
-          jsonData?.output?.content_aitools;
-
-        if (typeof contentAitools === "string" && contentAitools.trim()) {
-          content = contentAitools;
-        } else if (jsonData?.output?.text?.content) {
-          content = jsonData.output.text.content;
-        } else if (jsonData?.output?.text) {
-          content = jsonData.output.text;
-        } else if (contentAitools) {
-          content = JSON.stringify(contentAitools, null, 2);
-        }
-
-        // 提取关联问题
-        if (jsonData) {
-          const associationText =
-            jsonData?.output?.text?.association ||
-            jsonData?.output?.association;
-          if (associationText) {
-            association = parseAssociationQuestions(associationText);
+      // 记录完整的响应路径
+      if (currentMessage?.output) {
+        console.log("Output object:", currentMessage.output);
+        if (currentMessage.output.text) {
+          console.log("Raw text content:", currentMessage.output.text);
+          try {
+            const parsedText = JSON.parse(currentMessage.output.text);
+            console.log("Parsed text content:", parsedText);
+          } catch (e) {
+            console.log("Text is not JSON, using as plain text");
           }
         }
-      } catch (e) {
-        // 如果不是JSON，直接使用原始数据
-        content = currentMessage.data;
       }
+
+      // 统一处理响应数据
+      const extractContentAndAssociation = (data: any) => {
+        let extractedContent = "";
+        let extractedAssociation: Array<{ key: string; description: string }> =
+          [];
+
+        // 尝试从不同路径提取数据
+
+        const responseData = data?.output?.text || data?.data || data;
+        const textContent =
+          typeof responseData === "string"
+            ? responseData
+            : JSON.stringify(responseData);
+
+        try {
+          const parsedData =
+            typeof responseData === "string"
+              ? JSON.parse(responseData)
+              : responseData;
+          if (parsedData && typeof parsedData === "object") {
+            // 提取content
+
+            if (parsedData.content) {
+              extractedContent = parsedData.content;
+            } else if (parsedData.text) {
+              extractedContent = parsedData.text;
+            } else if (parsedData.output?.text) {
+              extractedContent = parsedData.output.text;
+            } else {
+              extractedContent = JSON.stringify(parsedData, null, 2);
+            }
+
+            // 提取association
+            if (parsedData.association) {
+              extractedAssociation = parseAssociationQuestions(
+                typeof parsedData.association === "string"
+                  ? parsedData.association
+                  : JSON.stringify(parsedData.association)
+              );
+            }
+          } else {
+            extractedContent = textContent;
+          }
+        } catch (e) {
+          console.log("Failed to parse response data, using raw content:", e);
+          extractedContent = textContent;
+        }
+
+        return { extractedContent, extractedAssociation };
+      };
+
+      // 处理各种响应格式
+      if (Array.isArray(currentMessage)) {
+        console.log("Processing array response");
+        const firstItem = currentMessage[0];
+        const { extractedContent, extractedAssociation } =
+          extractContentAndAssociation(firstItem);
+        content = extractedContent;
+        association = extractedAssociation;
+      } else if (currentMessage?.output || currentMessage?.data) {
+        console.log("Processing object response");
+        const { extractedContent, extractedAssociation } =
+          extractContentAndAssociation(currentMessage);
+        content = extractedContent;
+        association = extractedAssociation;
+      } else {
+        console.log("Unknown response format, using raw message");
+        content = JSON.stringify(currentMessage, null, 2);
+      }
+    } catch (e) {
+      console.error("解析消息失败:", e);
+      content = "解析消息失败，请查看控制台日志";
     }
 
-    // // 设置默认值（仅当content仍为空时）
-    // if (!content.trim()) {
-    //   content = "暂无内容";
-    // }
+    // 检查服务器响应状态
+    const isErrorResponse =
+      currentMessage?.status === "error" ||
+      currentMessage?.output?.finish_reason === "error";
 
-    return {
-      content: originMessage?.content
-        ? `${originMessage.content}${content}`
-        : content,
+    // 确定最终内容
+    let finalContent = content;
+    if (isErrorResponse) {
+      finalContent = "请求处理过程中出现错误，请稍后再试";
+    } else if (!finalContent) {
+      // 尝试从不同路径获取内容
+      const possibleContentPaths = [
+        currentMessage?.output?.text,
+        currentMessage?.data,
+        currentMessage?.message,
+        currentMessage?.content,
+      ];
+
+      for (const pathContent of possibleContentPaths) {
+        if (pathContent) {
+          try {
+            const parsed =
+              typeof pathContent === "string"
+                ? JSON.parse(pathContent)
+                : pathContent;
+            if (parsed?.content) {
+              finalContent = parsed.content;
+              break;
+            } else if (typeof parsed === "string") {
+              finalContent = parsed;
+              break;
+            }
+          } catch (e) {
+            finalContent = pathContent;
+            break;
+          }
+        }
+      }
+
+      // 最终回退
+      finalContent =
+        finalContent || "暂时无法获取回复内容，请尝试重新提问或稍后再试";
+    }
+
+    // 记录最终内容
+    console.groupCollapsed("Final content determination");
+    console.log("Initial content:", content);
+    console.log("Is error response:", isErrorResponse);
+    console.log("Final content:", finalContent);
+    console.groupEnd();
+
+    console.log("Final content:", finalContent);
+    console.log("Association data:", association);
+    console.groupEnd();
+
+    const result = {
+      content: finalContent,
       role: "assistant",
       association,
+      status: status as "loading" | "success" | "error",
     };
+
+    console.groupCollapsed("Final transformed message");
+    console.log("Complete transformed message:", result);
+    console.log("Message status:", status);
+    console.log("Content length:", finalContent.length);
+    console.log("Association questions count:", association.length);
+    console.groupEnd();
+
+    return result;
   },
   resolveAbortController: (controller) => {
     abortController.value = controller;
@@ -187,28 +419,287 @@ const { messages, onRequest, setMessages } = useXChat({
 });
 
 // ==================== Event ====================
-const handleUserSubmit = (val: string) => {
-  onRequest({ stream: true, message: { content: val, role: "user" } });
+const handleUserSubmit = async (val: string) => {
+  console.groupCollapsed("User Submit");
+  console.log("Submitted text:", val);
+  console.log("Current messages:", JSON.parse(JSON.stringify(messages.value)));
+  console.log("Is loading:", isLoading.value);
+  console.groupEnd();
+  const requestData = {
+    input: {
+      prompt: val,
+    },
+    parameters: {
+      incremental_output: true,
+    },
+    debug: {},
+  };
+
+  // 添加用户消息
+  const userMsgId = `msg_${Date.now()}`;
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: userMsgId,
+      message: { content: val, role: "user" },
+      status: "success",
+    } as MessageInfo<BubbleDataType>,
+  ]);
+
+  // 立即添加loading状态的消息
+  const loadingMsgId = `msg_${Date.now()}`;
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: loadingMsgId,
+      message: {
+        content: "正在思考中...",
+        role: "assistant",
+        status: "loading",
+      },
+      status: "loading",
+    },
+  ]);
+
+  try {
+    console.log("Sending request with data:", {
+      stream: true,
+      message: { content: val, role: "user" },
+      ...requestData,
+    });
+
+    console.log("Before agent request - transformMessage should be called");
+    const response = await agent.value.request(
+      {
+        stream: true,
+        message: {
+          content: val,
+          role: "user",
+          output: {
+            text: JSON.stringify({
+              content: val,
+              role: "user",
+            }),
+          },
+        },
+        headers: {
+          "Content-Type": "application/json",
+          "X-DashScope-SSE": "enable",
+        },
+        ...requestData,
+      },
+      {
+        onUpdate: (response: BubbleDataType) => {
+          // 解析服务器返回的JSON字符串
+          let parsedContent = response.content || "";
+          let parsedAssociation = response.association || [];
+
+          try {
+            // 处理非流式响应
+            if (response.output && response.output.text) {
+              const textStr = response.output.text;
+              try {
+                // 尝试解析text字段
+                const textObj = JSON.parse(textStr);
+                if (textObj && typeof textObj === "object") {
+                  parsedContent = textObj.content || textObj.text;
+                  if (!parsedContent) {
+                    parsedContent =
+                      typeof textObj === "string"
+                        ? textObj
+                        : JSON.stringify(textObj, null, 2);
+                  }
+                  if (textObj.association) {
+                    parsedAssociation = parseAssociationQuestions(
+                      typeof textObj.association === "string"
+                        ? textObj.association
+                        : JSON.stringify(textObj.association)
+                    );
+                  }
+                } else {
+                  parsedContent = textStr;
+                }
+              } catch (e) {
+                console.log("解析text内容失败，直接使用:", textStr);
+                parsedContent = textStr;
+              }
+            } else if (response.content) {
+              parsedContent = response.content;
+            }
+          } catch (e) {
+            console.error("解析消息失败:", e);
+            parsedContent = "解析消息失败，请查看控制台日志";
+          }
+
+          setMessages((prev) => {
+            // 更新现有的loading消息而不是创建新的
+            const updatedMessages = prev.map((msg) => {
+              if (
+                msg.message.role === "assistant" &&
+                msg.status === "loading"
+              ) {
+                return {
+                  ...msg,
+                  message: {
+                    ...msg.message,
+                    content: parsedContent,
+                    association: parsedAssociation,
+                  },
+                };
+              }
+              return msg;
+            });
+            return updatedMessages;
+          });
+        },
+        onSuccess: (response: BubbleDataType) => {
+          // 解析服务器返回的JSON字符串
+          let parsedContent = response.content || "";
+          let parsedAssociation = response.association || [];
+
+          try {
+            if (response.output && response.output.text) {
+              const textStr = response.output.text;
+              try {
+                const textObj = JSON.parse(textStr);
+                if (textObj && typeof textObj === "object") {
+                  parsedContent = textObj.content || textObj.text;
+                  if (!parsedContent) {
+                    parsedContent =
+                      typeof textObj === "string"
+                        ? textObj
+                        : JSON.stringify(textObj, null, 2);
+                  }
+                  if (textObj.association) {
+                    parsedAssociation = parseAssociationQuestions(
+                      typeof textObj.association === "string"
+                        ? textObj.association
+                        : JSON.stringify(textObj.association)
+                    );
+                  }
+                } else {
+                  parsedContent = textStr;
+                }
+              } catch (e) {
+                console.log("解析text内容失败，直接使用:", textStr);
+                parsedContent = textStr;
+              }
+            } else if (typeof response.content === "string") {
+              const parsed = JSON.parse(response.content);
+              if (parsed.content) parsedContent = parsed.content;
+              if (parsed.association) parsedAssociation = parsed.association;
+            }
+          } catch (e) {
+            console.log("解析消息内容失败，使用原始内容:", e);
+          }
+
+          // 更新消息为成功状态
+          setMessages((prev) => {
+            // 过滤掉所有assistant的loading消息
+            const filteredPrev = prev.filter(
+              (msg) =>
+                !(msg.message.role === "assistant" && msg.status === "loading")
+            );
+
+            // 添加成功状态的消息
+            return [
+              ...filteredPrev,
+              {
+                id: `msg_${Date.now()}`,
+                message: {
+                  content: parsedContent,
+                  role: "assistant",
+                  status: "success",
+                  association: parsedAssociation,
+                },
+                status: "success",
+              },
+            ];
+          });
+        },
+        onError: (error: Error) => {
+          // 更新消息状态为错误
+          setMessages((prev) => {
+            // 过滤掉所有assistant的loading消息
+            const filteredPrev = prev.filter(
+              (msg) =>
+                !(msg.message.role === "assistant" && msg.status === "loading")
+            );
+
+            // 添加错误状态的消息
+            return [
+              ...filteredPrev,
+              {
+                id: `msg_${Date.now()}`,
+                message: {
+                  content: error.message || "Request failed",
+                  role: "assistant",
+                  status: "error",
+                },
+                status: "error",
+              },
+            ];
+          });
+        },
+      }
+    );
+  } catch (error: any) {
+    // 更新消息状态为错误
+    setMessages((prev) => {
+      // 过滤掉所有assistant的loading消息
+      const filteredPrev = prev.filter(
+        (msg) => !(msg.message.role === "assistant" && msg.status === "loading")
+      );
+
+      // 添加错误状态的消息
+      return [
+        ...filteredPrev,
+        {
+          id: `msg_${Date.now()}`,
+          message: {
+            content: error.message || "Request failed",
+            role: "assistant",
+            status: "error",
+          },
+          status: "error",
+        },
+      ];
+    });
+  }
 };
 
 // 解析关联问题
 const parseAssociationQuestions = (
   association: string
 ): Array<{ key: string; description: string }> => {
-  if (!association) return [];
+  console.groupCollapsed("Parsing association questions");
+  console.log("Original association string:", association);
+
+  if (!association) {
+    console.log("Empty association string, returning empty array");
+    console.groupEnd();
+    return [];
+  }
 
   // 匹配类似 "1. 问题内容" 的格式
   const questionRegex = /\d+\.\s*(.+?)(?=\n\d+\.|\n*$)/g;
   const matches: RegExpExecArray[] = [];
   let match: RegExpExecArray | null;
+
+  console.log("Starting regex matching");
   while ((match = questionRegex.exec(association)) !== null) {
+    console.log(`Found match at index ${match.index}:`, match[0]);
     matches.push(match);
   }
 
-  return matches.map((match, index) => ({
+  const result = matches.map((match, index) => ({
     key: `assoc-${index}`,
     description: match[1]?.trim() || "",
   }));
+
+  console.log("Final parsed association questions:", result);
+  console.groupEnd();
+  return result;
 };
 
 const setCopilotOpen = (val: boolean) => (copilotOpen.value = val);
@@ -361,12 +852,6 @@ const roles: (typeof Bubble.List)["roles"] = {
           "& > *": {
             margin: "0.5em 0",
           },
-          "& > *:first-child": {
-            marginTop: 0,
-          },
-          "& > *:last-child": {
-            marginBottom: 0,
-          },
         },
       });
     },
@@ -431,33 +916,18 @@ const roles: (typeof Bubble.List)["roles"] = {
         <div v-if="messages?.length">
           <Bubble.List
             :style="{ height: '100%', paddingInline: '16px' }"
-            :items="
-              messages?.map((i) => ({
-                ...i.message,
-                styles: {
-                  content:
-                    i.message.role === 'assistant' && i.status !== 'success'
-                      ? styles.loadingMessage
-                      : {},
-                },
-                loading:
-                  i.message.role === 'assistant' && i.status !== 'success',
-                typing:
-                  i.message.role === 'assistant' && i.status !== 'success'
-                    ? { step: 5, interval: 20, suffix: h('span', '💗') }
-                    : false,
-              }))
-            "
+            :items="bubbleItems"
             :roles="roles"
           />
 
           <!-- 在每条AI消息后显示关联问题 -->
-          <template v-for="(msg, index) in messages" :key="`assoc-${index}`">
+          <template v-for="(msg, index) in messages">
             <div
               v-if="
                 msg.message.role === 'assistant' &&
                 msg.message.association?.length
               "
+              :key="`assoc-${index}`"
             >
               <Prompts
                 vertical
@@ -487,7 +957,7 @@ const roles: (typeof Bubble.List)["roles"] = {
           />
           <Prompts
             vertical
-            title="您可能想了解："
+            :title="() => '您可能想了解：'"
             :items="MOCK_QUESTIONS.map((i) => ({ key: i, description: i }))"
             :style="{
               'margin-inline': '16px',
@@ -525,12 +995,12 @@ const roles: (typeof Bubble.List)["roles"] = {
         </div>
         <!-- 输入框 -->
         <Suggestion
-          :items="MOCK_SUGGESTIONS"
+          :items="() => MOCK_SUGGESTIONS"
           @select="(itemVal) => (inputValue = `[${itemVal}]:`)"
         >
           <template #default>
             <Sender
-              :loading="loading"
+              :loading="isLoading"
               :value="inputValue"
               allow-speech
               placeholder="Ask or input / use skills"
@@ -601,7 +1071,7 @@ const roles: (typeof Bubble.List)["roles"] = {
                   <component :is="SpeechButton" :style="styles.speechButton" />
                   <component
                     :is="LoadingButton"
-                    v-if="loading"
+                    v-if="isLoading"
                     type="default"
                   />
                   <component :is="SendButton" v-else type="primary" />

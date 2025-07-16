@@ -2,7 +2,11 @@
  * @Author: masi 2454023350@qq.com
  * @Date: 2025-06-25 15:21:09
  * @LastEditors: masi 2454023350@qq.com
+<<<<<<< HEAD
  * @LastEditTime: 2025-07-16 14:55:21
+=======
+ * @LastEditTime: 2025-07-07 11:14:30
+>>>>>>> af6e119359cf3e4e8d636de129eac204e4b6a52c
  * @FilePath: \vue-blog\vite.config.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -48,7 +52,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://39.96.193.106:3000",
+        target: "http://39.96.193.106/:3000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
