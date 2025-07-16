@@ -31,6 +31,18 @@ import {
 import { marked } from "marked";
 import { Button, Image, Popover, Space, Spin, message } from "ant-design-vue";
 import { ref, watch, onMounted, computed, h, type ComputedRef } from "vue";
+import markdownit from "markdown-it";
+import { Typography } from "ant-design-vue";
+const md = markdownit({ html: true, breaks: true });
+
+const renderMarkdown = (content) => {
+  return h(Typography, null, {
+    default: () =>
+      h("div", {
+        innerHTML: md.render(content || ""),
+      }),
+  });
+};
 
 defineOptions({ name: "PlaygroundCopilotSetup" });
 
@@ -743,9 +755,11 @@ marked.setOptions({
   gfm: true,
 });
 
+// 配置 Bubble.List 的 roles，assistant 消息用 markdown-it 渲染
 const roles: (typeof Bubble.List)["roles"] = {
   assistant: {
     placement: "start",
+    messageRender: renderMarkdown,
     footer: h("div", { style: { display: "flex" } }, [
       h(Button, {
         type: "text",
@@ -774,22 +788,32 @@ const roles: (typeof Bubble.List)["roles"] = {
     ]),
     loadingRender: () =>
       h(Space, null, [h(Spin, { size: "small" }), "正在思考中"]),
-    contentRender: (content: string) => {
-      return h("div", {
-        innerHTML: marked(content),
-        style: {
-          "& > *": {
-            margin: "0.5em 0",
-          },
-        },
-      });
-    },
   },
   user: { placement: "end" },
 };
 
 // 添加相关问题点击处理
 function handleRelatedQuestion(question: string) {
+  // 清空所有已存在的 relatedQuestions
+  setMessages((prev) =>
+    prev.map((msg) => {
+      if (
+        msg.message.role === "assistant" &&
+        msg.message.relatedQuestions &&
+        msg.message.relatedQuestions.length
+      ) {
+        return {
+          ...msg,
+          message: {
+            ...msg.message,
+            relatedQuestions: [],
+          },
+        };
+      }
+      return msg;
+    })
+  );
+  // 填充输入框并发起新提问
   inputValue.value = question;
   handleUserSubmit(question);
 }
