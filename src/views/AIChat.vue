@@ -30,7 +30,15 @@ import {
 } from "ant-design-x-vue";
 import { marked } from "marked";
 import { Button, Image, Popover, Space, Spin, message } from "ant-design-vue";
-import { ref, watch, onMounted, computed, h, type ComputedRef } from "vue";
+import {
+  ref,
+  watch,
+  onMounted,
+  computed,
+  h,
+  type ComputedRef,
+  nextTick,
+} from "vue";
 import markdownit from "markdown-it";
 import { Typography } from "ant-design-vue";
 const md = markdownit({ html: true, breaks: true });
@@ -146,6 +154,18 @@ const files = ref<Attachment[]>([]);
 
 const inputValue = ref("");
 
+// 新增：消息列表ref
+const messageListRef = ref<HTMLDivElement | null>(null);
+
+// 新增：滚动到底部方法
+function scrollToBottom() {
+  nextTick(() => {
+    if (messageListRef.value) {
+      messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
+    }
+  });
+}
+
 // ==================== Runtime ====================
 
 /**
@@ -159,8 +179,10 @@ const isLoading = ref(false);
 
 const bubbleItems = computed(() => {
   return messages.value?.map((i) => ({
+    id: i.id,
     role: i.message.role,
     content: i.message.content,
+    showFooter: i.message.role === "assistant", // 只为AI消息显示footer
     association: i.message.association,
     status: i.status,
     styles: {
@@ -449,6 +471,7 @@ const handleUserSubmit = async (val: string) => {
       status: "success",
     } as MessageInfo<BubbleDataType>,
   ]);
+  scrollToBottom(); // 新增
 
   // 立即添加loading状态的消息
   const loadingMsgId = `msg_${Date.now()}`;
@@ -464,6 +487,7 @@ const handleUserSubmit = async (val: string) => {
       status: "loading",
     },
   ]);
+  scrollToBottom(); // 新增
 
   const url = "http://39.96.193.106:3000/api/dashscope/completion";
   const requestData = {
@@ -536,6 +560,7 @@ const handleUserSubmit = async (val: string) => {
                 });
                 return updatedMessages;
               });
+              scrollToBottom(); // 新增
             }
           } catch (e) {
             console.warn("流式解析失败，原始行：", line, e);
@@ -565,6 +590,7 @@ const handleUserSubmit = async (val: string) => {
         },
       ];
     });
+    scrollToBottom(); // 新增
   } catch (error) {
     setMessages((prev) => {
       const filteredPrev = prev.filter(
@@ -583,6 +609,7 @@ const handleUserSubmit = async (val: string) => {
         },
       ];
     });
+    scrollToBottom(); // 新增
   }
 };
 
@@ -632,8 +659,8 @@ function extractRelatedQuestions(fullContent: string) {
   const before = fullContent.slice(0, match.index).trim();
   const questionsStr = match[0].replace(/^可能还会提问的问题[：:]/, "").trim();
   const questions = [];
-  // 匹配 1. **xxx** 2. **xxx** 形式
-  const regex = /[0-9]+[.、．]\s*\*\*(.+?)\*\*/g;
+  // 匹配 1. xxx 2. xxx 3. xxx
+  const regex = /[0-9]+[.、．]\s*(.+)/g;
   let qMatch;
   while ((qMatch = regex.exec(questionsStr))) {
     questions.push(qMatch[1].trim());
@@ -760,37 +787,62 @@ const roles: (typeof Bubble.List)["roles"] = {
   assistant: {
     placement: "start",
     messageRender: renderMarkdown,
-    footer: h("div", { style: { display: "flex" } }, [
-      h(Button, {
-        type: "text",
-        size: "small",
-        icon: h(ReloadOutlined),
-        onClick: () => {},
-      }),
-      h(Button, {
-        type: "text",
-        size: "small",
-        icon: h(CopyOutlined),
-        onClick: () => {},
-      }),
-      h(Button, {
-        type: "text",
-        size: "small",
-        icon: h(LikeOutlined),
-        onClick: () => {},
-      }),
-      h(Button, {
-        type: "text",
-        size: "small",
-        icon: h(DislikeOutlined),
-        onClick: () => {},
-      }),
-    ]),
     loadingRender: () =>
       h(Space, null, [h(Spin, { size: "small" }), "正在思考中"]),
+    footer: (info: any) =>
+      h("div", { style: { display: "flex", gap: "8px" } }, [
+        h(Button, {
+          type: "text",
+          size: "small",
+          icon: h(ReloadOutlined),
+          title: "重新生成",
+          onClick: () => onRegenerate(info),
+        }),
+        h(Button, {
+          type: "text",
+          size: "small",
+          icon: h(CopyOutlined),
+          title: "复制内容",
+          onClick: () => onCopy(info),
+        }),
+      ]),
   },
   user: { placement: "end" },
 };
+
+function onRegenerate(footerProps) {
+  // footerProps 就是当前AI回复的内容（字符串）
+  const idx = messages.value.findIndex(
+    (m) => m.message.role === "assistant" && m.message.content === footerProps
+  );
+  if (idx > 0) {
+    // 向前查找最近一条 user 消息
+    const userMsg = messages.value
+      .slice(0, idx)
+      .reverse()
+      .find((m) => m.message.role === "user");
+    if (userMsg) {
+      handleUserSubmit(userMsg.message.content);
+    } else {
+      message.warning("未找到前一条用户消息，无法重新生成");
+    }
+  } else {
+    message.warning("未找到对应的AI消息，无法重新生成");
+  }
+}
+
+function onCopy(footerProps: any) {
+  console.log("[AIChat] 复制内容 footerProps:", footerProps);
+  navigator.clipboard
+    .writeText(footerProps)
+    .then(() => {
+      message.success("已复制到剪贴板");
+    })
+    .catch((err) => {
+      message.error("复制失败");
+      console.error("[AIChat] 复制失败", err);
+    });
+}
 
 // 添加相关问题点击处理
 function handleRelatedQuestion(question: string) {
@@ -871,7 +923,7 @@ function handleRelatedQuestion(question: string) {
         </Space>
       </div>
       <!-- 对话区 - 消息列表 -->
-      <div :style="styles.chatList">
+      <div :style="styles.chatList" ref="messageListRef">
         <div v-if="messages?.length">
           <Bubble.List
             :style="{ height: '100%', paddingInline: '16px' }"
@@ -913,7 +965,7 @@ function handleRelatedQuestion(question: string) {
           />
           <Prompts
             vertical
-            :title="() => '您可能想了解：'"
+            title="您可能想了解："
             :items="MOCK_QUESTIONS.map((i) => ({ key: i, description: i }))"
             :style="{
               'margin-inline': '16px',
