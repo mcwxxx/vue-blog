@@ -109,7 +109,7 @@ const inputValue = ref("");
  * 🔔 Please replace the BASE_URL, PATH, MODEL, API_KEY with your own values.
  */
 const [agent] = useXAgent<BubbleDataType>({
-  baseURL: "http://47.107.149.197/api/dashscope/completion",
+  baseURL: "http://39.96.193.106/api/dashscope/completion",
 });
 
 const loading = agent.value.isRequesting();
