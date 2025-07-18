@@ -12,6 +12,9 @@ import {
   AppstoreOutlined,
   ReloadOutlined,
   ScheduleOutlined,
+  SoundOutlined,
+  PauseOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons-vue";
 import {
   Attachments,
@@ -34,6 +37,7 @@ import {
   ref,
   watch,
   onMounted,
+  onBeforeUnmount,
   computed,
   h,
   type ComputedRef,
@@ -41,6 +45,7 @@ import {
 } from "vue";
 import markdownit from "markdown-it";
 import { Typography } from "ant-design-vue";
+import ttsService from "../utils/ttsService";
 const md = markdownit({ html: true, breaks: true });
 
 const renderMarkdown = (content) => {
@@ -154,6 +159,94 @@ const files = ref<Attachment[]>([]);
 
 const inputValue = ref("");
 
+// TTS 相关状态
+const tts = ref<any>(null);
+const ttsStatus = ref({
+  connection: "disconnected",
+  playback: "idle",
+  message: null,
+});
+const currentPlayingMessageId = ref<string | null>(null);
+const isConnectingTTS = ref(false);
+const playbackProgress = ref(0);
+const progressUpdateTimer = ref<number | null>(null);
+
+// 获取播放按钮的标题
+function getPlaybackButtonTitle(messageId: string): string {
+  if (currentPlayingMessageId.value !== messageId) {
+    return "收听内容";
+  }
+
+  // 根据播放状态返回不同的标题
+  switch (ttsStatus.value.playback) {
+    case "playing":
+      return "暂停播放";
+    case "paused":
+      return "继续播放";
+    case "loading":
+      return "正在加载音频...";
+    case "error":
+      return "播放出错，点击重试";
+    default:
+      return "收听内容";
+  }
+}
+
+// 获取当前播放进度百分比
+function getPlaybackProgress(): number {
+  if (!tts.value || currentPlayingMessageId.value === null) {
+    return 0;
+  }
+
+  try {
+    // 从TTS服务获取播放进度
+    const progress = tts.value.getPlaybackProgress();
+    return progress.progress || 0;
+  } catch (error) {
+    console.error("获取播放进度失败:", error);
+    return 0;
+  }
+}
+
+// 初始化 TTS 服务
+function initTTSService() {
+  if (tts.value) {
+    return; // 如果已经初始化，则不再重复初始化
+  }
+
+  isConnectingTTS.value = true;
+
+  // 初始化 TTS 服务
+  tts.value = ttsService.init({
+    // 状态变更回调
+    onStatusChange: (status) => {
+      console.log("TTS 状态变更:", status);
+      ttsStatus.value = status;
+    },
+    // 错误回调
+    onError: (error) => {
+      console.error("TTS 错误:", error);
+      message.error(`语音服务错误: ${error.message || "未知错误"}`);
+    },
+    // 自动重连设置
+    autoReconnect: true,
+    reconnectAttempts: 3,
+    reconnectInterval: 2000,
+  });
+
+  // 连接到 TTS 服务器
+  tts.value
+    .connect()
+    .then(() => {
+      console.log("TTS 服务连接成功");
+      isConnectingTTS.value = false;
+    })
+    .catch((error) => {
+      console.error("TTS 服务连接失败:", error);
+      isConnectingTTS.value = false;
+    });
+}
+
 // 新增：消息列表ref
 const messageListRef = ref<HTMLDivElement | null>(null);
 
@@ -165,6 +258,22 @@ function scrollToBottom() {
     }
   });
 }
+
+// 在组件挂载时初始化 TTS 服务
+onMounted(() => {
+  console.log("AIChat 组件挂载，初始化 TTS 服务");
+  initTTSService();
+});
+
+// 在组件卸载前清理 TTS 资源
+onBeforeUnmount(() => {
+  console.log("AIChat 组件卸载，清理 TTS 资源");
+  stopProgressUpdates(); // 确保停止进度更新
+  if (tts.value) {
+    tts.value.cleanup();
+    tts.value = null;
+  }
+});
 
 // ==================== Runtime ====================
 
@@ -805,6 +914,111 @@ const roles: (typeof Bubble.List)["roles"] = {
           title: "复制内容",
           onClick: () => onCopy(info),
         }),
+        h("div", { style: { display: "flex", alignItems: "center" } }, [
+          h(Button, {
+            type: "text",
+            size: "small",
+            icon: h(
+              currentPlayingMessageId.value === info.id
+                ? ttsStatus.value.playback === "paused"
+                  ? SoundOutlined
+                  : PauseOutlined
+                : SoundOutlined
+            ),
+            title: getPlaybackButtonTitle(info.id),
+            loading:
+              isConnectingTTS.value ||
+              (currentPlayingMessageId.value === info.id &&
+                (ttsStatus.value.playback === "loading" ||
+                  ttsStatus.value.connection === "connecting")),
+            onClick: () => onListen({ ...info, id: info.id }),
+            style:
+              currentPlayingMessageId.value === info.id
+                ? {
+                    backgroundColor:
+                      ttsStatus.value.playback === "playing"
+                        ? "rgba(0, 128, 0, 0.1)"
+                        : ttsStatus.value.playback === "paused"
+                        ? "rgba(255, 165, 0, 0.1)"
+                        : "",
+                    color:
+                      ttsStatus.value.playback === "playing"
+                        ? "green"
+                        : ttsStatus.value.playback === "paused"
+                        ? "orange"
+                        : "",
+                  }
+                : {},
+          }),
+          // 播放状态指示器
+          currentPlayingMessageId.value === info.id &&
+          ttsStatus.value.playback !== "idle" &&
+          ttsStatus.value.playback !== "error"
+            ? h(
+                "div",
+                {
+                  style: {
+                    marginLeft: "4px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: "2px",
+                  },
+                },
+                [
+                  // 状态文本
+                  h("div", {
+                    style: {
+                      fontSize: "12px",
+                      color:
+                        ttsStatus.value.playback === "playing"
+                          ? "green"
+                          : ttsStatus.value.playback === "paused"
+                          ? "orange"
+                          : "#666",
+                    },
+                    innerHTML:
+                      ttsStatus.value.playback === "playing"
+                        ? "播放中"
+                        : ttsStatus.value.playback === "paused"
+                        ? "已暂停"
+                        : ttsStatus.value.playback === "loading"
+                        ? "加载中"
+                        : "",
+                  }),
+                  // 进度条 (仅在播放或暂停时显示)
+                  ttsStatus.value.playback === "playing" ||
+                  ttsStatus.value.playback === "paused"
+                    ? h(
+                        "div",
+                        {
+                          style: {
+                            width: "60px",
+                            height: "4px",
+                            backgroundColor: "#f0f0f0",
+                            borderRadius: "2px",
+                            overflow: "hidden",
+                          },
+                        },
+                        [
+                          h("div", {
+                            style: {
+                              width: `${getPlaybackProgress()}%`,
+                              height: "100%",
+                              backgroundColor:
+                                ttsStatus.value.playback === "playing"
+                                  ? "green"
+                                  : "orange",
+                              transition: "width 0.3s",
+                            },
+                          }),
+                        ]
+                      )
+                    : null,
+                ]
+              )
+            : null,
+        ]),
       ]),
   },
   user: { placement: "end" },
@@ -868,6 +1082,248 @@ function handleRelatedQuestion(question: string) {
   // 填充输入框并发起新提问
   inputValue.value = question;
   handleUserSubmit(question);
+}
+
+// 开始定时更新播放进度
+function startProgressUpdates() {
+  // 清除现有的计时器
+  stopProgressUpdates();
+
+  // 创建新的计时器，每200毫秒更新一次进度
+  progressUpdateTimer.value = window.setInterval(() => {
+    if (!tts.value || currentPlayingMessageId.value === null) {
+      playbackProgress.value = 0;
+      return;
+    }
+
+    try {
+      // 从TTS服务获取播放进度
+      const progress = tts.value.getPlaybackProgress();
+      playbackProgress.value = progress.progress || 0;
+    } catch (error) {
+      console.error("获取播放进度失败:", error);
+    }
+  }, 200);
+}
+
+// 停止更新播放进度
+function stopProgressUpdates() {
+  if (progressUpdateTimer.value !== null) {
+    window.clearInterval(progressUpdateTimer.value);
+    progressUpdateTimer.value = null;
+  }
+}
+
+// TTS 相关功能
+function onListen(info: any) {
+  console.group("TTS触发");
+  console.log("触发TTS，参数:", info);
+
+  // 获取消息ID和内容
+  const messageId = info.id || info;
+  const messageContent = typeof info === "string" ? info : info.content;
+
+  console.log("消息ID:", messageId);
+  console.log("消息内容类型:", typeof messageContent);
+  console.log("消息内容长度:", messageContent?.length || 0);
+
+  // 如果当前正在播放这条消息，则暂停播放
+  if (currentPlayingMessageId.value === messageId) {
+    console.log("当前消息正在播放，切换播放/暂停状态");
+    if (tts.value) {
+      tts.value.togglePlayPause().then((state) => {
+        console.log("播放状态切换为:", state);
+        if (state === "paused") {
+          // 如果暂停了，保持当前播放消息ID不变
+          message.info("语音播放已暂停");
+        } else if (state === "playing") {
+          // 如果恢复播放，保持当前播放消息ID不变
+          message.info("语音播放已恢复");
+        } else {
+          // 如果出错或其他状态，清除当前播放消息ID
+          currentPlayingMessageId.value = null;
+        }
+      });
+    }
+    console.groupEnd();
+    return;
+  }
+
+  // 停止当前正在播放的其他消息
+  if (currentPlayingMessageId.value && tts.value) {
+    console.log("停止当前播放的其他消息:", currentPlayingMessageId.value);
+    tts.value.stop();
+  }
+
+  // 提取纯文本（去除Markdown）
+  console.log("开始提取纯文本...");
+  const plainText = extractPlainText(messageContent);
+  console.log("提取的纯文本长度:", plainText?.length || 0);
+
+  if (!plainText) {
+    console.error("无法提取有效的文本内容");
+    message.error("无法提取有效的文本内容");
+    console.groupEnd();
+    return;
+  }
+
+  // 确保TTS服务已初始化
+  if (!tts.value) {
+    console.log("TTS服务未初始化，正在初始化...");
+    initTTSService();
+  }
+
+  // 检查TTS服务连接状态
+  if (tts.value && !tts.value.isConnected()) {
+    console.log("TTS服务未连接，正在连接...");
+    message.loading("正在连接语音服务...");
+    tts.value
+      .connect()
+      .then(() => {
+        console.log("TTS服务连接成功，开始语音转换");
+        processTTSRequest(messageId, plainText);
+      })
+      .catch((error) => {
+        console.error("TTS服务连接失败:", error);
+        message.error(`语音服务连接失败: ${error.message || "未知错误"}`);
+        console.groupEnd();
+      });
+  } else {
+    // TTS服务已连接，直接处理请求
+    processTTSRequest(messageId, plainText);
+  }
+
+  console.groupEnd();
+}
+
+// 处理TTS请求的辅助函数
+function processTTSRequest(messageId: string, text: string) {
+  console.group("处理TTS请求");
+  console.log("消息ID:", messageId);
+  console.log("文本长度:", text.length);
+
+  // 设置当前播放的消息ID
+  currentPlayingMessageId.value = messageId;
+
+  // 显示加载指示器
+  message.loading({
+    content: "正在转换文本为语音...",
+    duration: 0,
+    key: "tts-loading",
+  });
+
+  // 使用TTS服务播放文本
+  tts.value
+    .speak(text)
+    .then(() => {
+      console.log("TTS请求已发送");
+
+      // 监听播放状态变化
+      const statusWatcher = watch(
+        () => ttsStatus.value.playback,
+        (newStatus) => {
+          console.log("TTS播放状态变化:", newStatus);
+
+          if (newStatus === "playing") {
+            // 播放开始，关闭加载提示
+            message.destroy("tts-loading");
+            message.success("语音播放开始");
+            // 开始更新进度
+            startProgressUpdates();
+          } else if (newStatus === "error") {
+            // 播放错误
+            message.destroy("tts-loading");
+            message.error("语音播放失败");
+            currentPlayingMessageId.value = null;
+            stopProgressUpdates(); // 停止更新进度
+            statusWatcher(); // 停止监听
+          } else if (newStatus === "idle") {
+            // 播放结束
+            message.info("语音播放完成");
+            currentPlayingMessageId.value = null;
+            stopProgressUpdates(); // 停止更新进度
+            statusWatcher(); // 停止监听
+          } else if (newStatus === "paused") {
+            // 播放暂停，但继续更新进度（显示暂停位置）
+            message.info("语音播放已暂停");
+          }
+        }
+      );
+    })
+    .catch((error) => {
+      console.error("TTS请求失败:", error);
+      message.destroy("tts-loading");
+      message.error(`语音转换失败: ${error.message || "未知错误"}`);
+      currentPlayingMessageId.value = null;
+      stopProgressUpdates(); // 停止更新进度
+    });
+
+  console.groupEnd();
+}
+
+// 从Markdown文本中提取纯文本
+function extractPlainText(markdownText: string): string {
+  if (!markdownText) return "";
+
+  console.log("提取纯文本，原始文本长度:", markdownText.length);
+
+  try {
+    // 移除代码块（包括语言标识）
+    let text = markdownText.replace(/```[\s\S]*?```/g, "");
+
+    // 移除行内代码，但保留代码内容
+    text = text.replace(/`([^`]+)`/g, "$1");
+
+    // 移除标题标记
+    text = text.replace(/#{1,6}\s+/g, "");
+
+    // 移除链接，保留链接文本
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+
+    // 移除图片标记
+    text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, "");
+
+    // 移除粗体和斜体标记
+    text = text.replace(/(\*\*|__)(.*?)\1/g, "$2");
+    text = text.replace(/(\*|_)(.*?)\1/g, "$2");
+
+    // 移除列表标记
+    text = text.replace(/^[\*\-+]\s+/gm, "");
+    text = text.replace(/^\d+\.\s+/gm, "");
+
+    // 移除HTML标签
+    text = text.replace(/<[^>]*>/g, "");
+
+    // 移除表格标记
+    text = text.replace(/\|.*\|/g, "");
+    text = text.replace(/[-:]+/g, "");
+
+    // 移除引用标记
+    text = text.replace(/^>\s+/gm, "");
+
+    // 移除水平线
+    text = text.replace(/^-{3,}|^_{3,}|^\*{3,}/gm, "");
+
+    // 移除多余空白行
+    text = text.replace(/\n{3,}/g, "\n\n");
+
+    // 移除多余空白
+    text = text.replace(/\s+/g, " ").trim();
+
+    console.log("提取后的纯文本长度:", text.length);
+
+    // 如果提取后文本为空，返回原始文本的简单处理版本
+    if (!text.trim()) {
+      console.warn("提取后文本为空，使用简单处理");
+      return markdownText.replace(/[#*`_>|]/g, "").trim();
+    }
+
+    return text;
+  } catch (error) {
+    console.error("提取纯文本时出错:", error);
+    // 出错时返回原始文本的简单处理版本
+    return markdownText.replace(/[#*`_>|]/g, "").trim();
+  }
 }
 </script>
 
@@ -1092,3 +1548,31 @@ function handleRelatedQuestion(question: string) {
     </div>
   </div>
 </template>
+// TTS 相关功能 function onListen(messageContent: string) { //
+如果当前正在播放这条消息，则暂停播放 if (currentPlayingMessageId.value ===
+messageContent) { if (tts.value) { tts.value.togglePlayPause().then((state) => {
+console.log('播放状态切换为:', state); if (state === 'paused') { //
+如果暂停了，保持当前播放消息ID不变 } else if (state === 'playing') { //
+如果恢复播放，保持当前播放消息ID不变 } else { //
+如果出错或其他状态，清除当前播放消息ID currentPlayingMessageId.value = null; }
+}); } return; } // 查找消息对象 const messageObj = messages.value.find(msg =>
+msg.message.role === 'assistant' && msg.message.content === messageContent ); if
+(!messageObj) { message.error('未找到对应的消息内容'); return; } //
+提取纯文本（去除Markdown） const plainText = extractPlainText(messageContent);
+if (!plainText) { message.error('无法提取有效的文本内容'); return; } //
+确保TTS服务已初始化 if (!tts.value) { initTTSService(); } //
+设置当前播放的消息ID currentPlayingMessageId.value = messageContent; //
+使用TTS服务播放文本 tts.value.speak(plainText) .then(() => {
+console.log('TTS请求已发送'); }) .catch((error) => {
+console.error('TTS请求失败:', error); message.error(`语音转换失败:
+${error.message || '未知错误'}`); currentPlayingMessageId.value = null; }); } //
+从Markdown文本中提取纯文本 function extractPlainText(markdownText: string):
+string { // 移除代码块 let text = markdownText.replace(/```[\s\S]*?```/g, '');
+// 移除行内代码 text = text.replace(/`([^`]+)`/g, '$1'); // 移除标题标记 text =
+text.replace(/#{1,6}\s+/g, ''); // 移除链接，保留链接文本 text =
+text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // 移除图片标记 text =
+text.replace(/!\[([^\]]*)\]\([^)]+\)/g, ''); // 移除粗体和斜体标记 text =
+text.replace(/(\*\*|__)(.*?)\1/g, '$2'); text = text.replace(/(\*|_)(.*?)\1/g,
+'$2'); // 移除列表标记 text = text.replace(/^[\*\-+]\s+/gm, ''); text =
+text.replace(/^\d+\.\s+/gm, ''); // 移除HTML标签 text = text.replace(/<[^>]*>/g,
+''); // 移除多余空白 text = text.replace(/\s+/g, ' ').trim(); return text; }
