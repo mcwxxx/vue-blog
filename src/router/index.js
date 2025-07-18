@@ -28,6 +28,11 @@ const routes = [
             component: () => import("../views/AIDiagnosis.vue"),
             meta: { menuKey: "ai-diagnosis" },
           },
+          {
+            path: "tts-test",
+            component: () => import("../views/TTSTestPage.vue"),
+            meta: { menuKey: "ai-tts-test" },
+          },
         ],
       },
       {

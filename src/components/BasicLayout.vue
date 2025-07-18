@@ -46,6 +46,9 @@ const handleMenuClick = ({ key }) => {
     case "ai-diagnosis":
       router.push("/ai/diagnosis");
       break;
+    case "ai-tts-test":
+      router.push("/ai/tts-test");
+      break;
     case "article-list":
       router.push("/posts");
       if (isMobile.value) drawerVisible.value = false;
@@ -76,6 +79,7 @@ const handleMenuClick = ({ key }) => {
         <Menu.SubMenu key="ai" title="AI功能">
           <Menu.Item key="ai-chat">对话区域</Menu.Item>
           <Menu.Item key="ai-diagnosis">问诊区域</Menu.Item>
+          <Menu.Item key="ai-tts-test">TTS测试</Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key="article" title="文章管理">
           <Menu.Item key="article-list">文章列表</Menu.Item>
@@ -91,6 +95,7 @@ const handleMenuClick = ({ key }) => {
         <Menu.SubMenu key="ai" title="AI功能">
           <Menu.Item key="ai-chat">对话区域</Menu.Item>
           <Menu.Item key="ai-diagnosis">问诊区域</Menu.Item>
+          <Menu.Item key="ai-tts-test">TTS测试</Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key="article" title="文章管理">
           <Menu.Item key="article-list">文章列表</Menu.Item>
