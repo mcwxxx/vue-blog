@@ -43,6 +43,9 @@ const handleMenuClick = ({ key }) => {
     case "ai-chat":
       router.push("/ai/chat");
       break;
+    case "ai-chat-new":
+      router.push("/ai/chat-new");
+      break;
     case "ai-diagnosis":
       router.push("/ai/diagnosis");
       break;
@@ -75,6 +78,7 @@ const handleMenuClick = ({ key }) => {
         <Menu.Item key="home">主页</Menu.Item>
         <Menu.SubMenu key="ai" title="AI功能">
           <Menu.Item key="ai-chat">对话区域</Menu.Item>
+          <Menu.Item key="ai-chat-new">新对话区域</Menu.Item>
           <Menu.Item key="ai-diagnosis">问诊区域</Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key="article" title="文章管理">
@@ -90,6 +94,7 @@ const handleMenuClick = ({ key }) => {
         <Menu.Item key="home">主页</Menu.Item>
         <Menu.SubMenu key="ai" title="AI功能">
           <Menu.Item key="ai-chat">对话区域</Menu.Item>
+          <Menu.Item key="ai-chat-new">新对话区域</Menu.Item>
           <Menu.Item key="ai-diagnosis">问诊区域</Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key="article" title="文章管理">

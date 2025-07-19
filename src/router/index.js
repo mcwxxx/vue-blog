@@ -2,7 +2,7 @@
  * @Author: masi 2454023350@qq.com
  * @Date: 2025-06-25 15:30:17
  * @LastEditors: masi 2454023350@qq.com
- * @LastEditTime: 2025-06-26 16:08:47
+ * @LastEditTime: 2025-07-19 19:38:37
  * @FilePath: \figmamcp\vue-blog\src\router\index.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -16,19 +16,19 @@ const routes = [
     children: [
       { path: "", component: Home, meta: { menuKey: "home" } },
       {
-        path: "ai",
-        children: [
-          {
-            path: "chat",
-            component: () => import("../views/AIChat.vue"),
-            meta: { menuKey: "ai-chat" },
-          },
-          {
-            path: "diagnosis",
-            component: () => import("../views/AIDiagnosis.vue"),
-            meta: { menuKey: "ai-diagnosis" },
-          },
-        ],
+        path: "ai/chat",
+        component: () => import("../views/AIChat.vue"),
+        meta: { menuKey: "ai-chat" },
+      },
+      {
+        path: "ai/chat-new",
+        component: () => import("../views/AIChatNew.vue"),
+        meta: { menuKey: "ai-chat-new" },
+      },
+      {
+        path: "ai/diagnosis",
+        component: () => import("../views/AIDiagnosis.vue"),
+        meta: { menuKey: "ai-diagnosis" },
       },
       {
         path: "post/:id",
