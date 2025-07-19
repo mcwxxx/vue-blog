@@ -96,29 +96,34 @@ function onCopy(footerProps: string) {
  * @returns VNode
  */
 const renderAssistantMessage = (content: string, info: any) => {
-  // 检查是否是流式更新中的消息（有内容且状态为loading）
-  const isStreaming = info?.status === 'loading' && content && content.trim().length > 0;
+  console.log('渲染助手消息:', { 
+    content: content?.slice(0, 50), 
+    status: info?.status, 
+    loading: info?.loading,
+    hasContent: !!content 
+  });
   
-  // 如果是流式更新且有内容，使用打字机效果
-  if (isStreaming) {
+  // 如果消息正在加载中且有内容，使用打字机效果
+  // 检查 loading 字段或者 status 为 'loading'
+  const isLoading = info?.loading === true || info?.status === 'loading';
+  if (isLoading && content && content.trim().length > 0) {
+    console.log('使用打字机效果渲染');
     return h(TypewriterText, {
       text: content,
-      speed: 20, // 稍微快一点的打字速度
+      speed: 50,
       enabled: true,
       showCursor: true,
       onComplete: () => {
-        console.log('[ChatBubble] 打字机效果完成:', content.slice(0, 50) + '...');
+        console.log('打字机效果完成');
       },
       onProgress: (progress: number) => {
-        // 可以在这里添加进度处理逻辑
-        if (progress % 10 === 0) { // 每10%输出一次进度
-          console.log(`[ChatBubble] 打字进度: ${progress.toFixed(1)}%`);
-        }
-      },
+        console.log('打字机进度:', progress);
+      }
     });
   }
   
-  // 如果消息已完成或没有内容，直接渲染markdown
+  // 否则直接渲染markdown
+  console.log('使用普通markdown渲染');
   return renderMarkdown(content);
 };
 

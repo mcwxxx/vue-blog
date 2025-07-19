@@ -149,6 +149,7 @@ const bubbleMessages = computed((): MessageInfo<BubbleDataType>[] => {
       content: msg.content,
       role: msg.role as 'user' | 'assistant',
       status: msg.status,
+      loading: msg.loading,
       relatedQuestions: msg.relatedQuestions,
     },
     status: msg.status,
