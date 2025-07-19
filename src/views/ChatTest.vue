@@ -1,10 +1,7 @@
 <template>
   <div class="chat-test-page">
-    <div class="page-header">
-      <h1>AI 聊天组件测试</h1>
-      <p>测试重构后的 AI 聊天组件功能</p>
-    </div>
-    
+    <!-- 去掉header部分 -->
+
     <div class="chat-container">
       <AIChatRefactored
         :api-url="apiUrl"
@@ -15,7 +12,7 @@
         @error="handleChatError"
       />
     </div>
-    
+
     <div class="debug-panel" v-if="showDebug">
       <h3>调试信息</h3>
       <div class="debug-item">
@@ -28,18 +25,18 @@
         <button @click="toggleDebug">隐藏调试面板</button>
       </div>
     </div>
-    
+
     <div class="control-panel">
       <button @click="toggleDebug" class="debug-btn">
-        {{ showDebug ? '隐藏' : '显示' }}调试面板
+        {{ showDebug ? "隐藏" : "显示" }}调试面板
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import AIChatRefactored from '@/components/chat/AIChatRefactored.vue';
+import { ref } from "vue";
+import AIChatRefactored from "@/components/chat/AIChatRefactored.vue";
 
 // 页面状态
 const showDebug = ref(false);
@@ -47,24 +44,26 @@ const messageCount = ref(0);
 const lastError = ref<string | null>(null);
 
 // 聊天配置
-const apiUrl = ref('http://39.96.193.106:3000/api/dashscope/completion');
-const welcomeTitle = ref('AI 助手测试');
-const welcomeDescription = ref('这是重构后的 AI 聊天组件测试页面，您可以在这里测试各种功能。');
+const apiUrl = ref("http://39.96.193.106:3000/api/dashscope/completion");
+const welcomeTitle = ref("AI 助手测试");
+const welcomeDescription = ref(
+  "这是重构后的 AI 聊天组件测试页面，您可以在这里测试各种功能。"
+);
 
 // 事件处理函数
 const handleChatClose = (): void => {
-  console.log('[ChatTest] 聊天关闭');
+  console.log("[ChatTest] 聊天关闭");
   // 可以添加关闭聊天的逻辑，比如导航到其他页面
 };
 
 const handleMessageCount = (count: number): void => {
   messageCount.value = count;
-  console.log('[ChatTest] 消息数量更新:', count);
+  console.log("[ChatTest] 消息数量更新:", count);
 };
 
 const handleChatError = (error: string): void => {
   lastError.value = error;
-  console.error('[ChatTest] 聊天错误:', error);
+  console.error("[ChatTest] 聊天错误:", error);
 };
 
 const toggleDebug = (): void => {
@@ -74,39 +73,19 @@ const toggleDebug = (): void => {
 
 <style scoped>
 .chat-test-page {
-  height: 100vh;
+  height: calc(100vh - 164px);
   display: flex;
   flex-direction: column;
   background: #f5f5f5;
 }
 
-.page-header {
-  background: #fff;
-  padding: 20px;
-  border-bottom: 1px solid #e8e8e8;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.page-header h1 {
-  margin: 0 0 8px 0;
-  color: #1890ff;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.page-header p {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
-}
-
 .chat-container {
   flex: 1;
-  padding: 20px;
   display: flex;
   justify-content: center;
   align-items: stretch;
   min-height: 0;
+  height: 100%;
 }
 
 .chat-container > * {
@@ -193,19 +172,19 @@ button:hover {
   .page-header {
     padding: 16px;
   }
-  
+
   .page-header h1 {
     font-size: 20px;
   }
-  
+
   .chat-container {
     padding: 12px;
   }
-  
+
   .debug-panel {
     padding: 12px 16px;
   }
-  
+
   .control-panel {
     bottom: 12px;
     right: 12px;

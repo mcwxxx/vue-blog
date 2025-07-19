@@ -148,11 +148,20 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
           for (const line of lines) {
             if (!line.trim()) continue;
             
+            console.log('[useChat] 处理流式数据行:', line);
             const text = parseStreamChunk(line);
             if (text) {
               fullContent += text;
+              console.log('[useChat] 解析到文本片段:', {
+                textLength: text.length,
+                textContent: text,
+                fullContentLength: fullContent.length,
+                messageId: assistantMessage.id
+              });
               // 实时更新消息内容
               updateMessageContent(assistantMessage.id, fullContent);
+            } else {
+              console.log('[useChat] 未解析到文本内容，原始行:', line);
             }
           }
         }

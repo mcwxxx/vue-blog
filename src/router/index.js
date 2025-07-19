@@ -20,7 +20,7 @@ const routes = [
         children: [
           {
             path: "chat",
-            component: () => import("../views/AIChat.vue"),
+            component: () => import("../views/ChatTest.vue"),
             meta: { menuKey: "ai-chat" },
           },
           {

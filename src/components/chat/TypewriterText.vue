@@ -1,20 +1,18 @@
 <template>
   <div class="typewriter-container">
-    <div 
-      class="typewriter-text"
-      v-html="displayedHtml"
-    />
-    <span 
-      v-if="isTyping" 
+    <div class="typewriter-text" v-html="displayedHtml" />
+    <span
+      v-if="isTyping"
       class="typewriter-cursor"
       :class="{ 'cursor-blink': showCursor }"
-    >|</span>
+      >|</span
+    >
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { renderMarkdown } from '@/utils/markdown';
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { renderMarkdown } from "@/utils/markdown";
 
 /**
  * 打字机效果组件
@@ -46,23 +44,23 @@ const emit = defineEmits<{
 }>();
 
 // 状态管理
-const displayedText = ref('');
+const displayedText = ref("");
 const currentIndex = ref(0);
-const isTyping = ref(false);
+const isTyping = ref(true);
 const typewriterTimer = ref<NodeJS.Timeout | null>(null);
 const cursorTimer = ref<NodeJS.Timeout | null>(null);
 const showCursorState = ref(true);
 
 // 计算属性
 const displayedHtml = computed(() => {
-  if (!displayedText.value) return '';
-  
+  if (!displayedText.value) return "";
+
   try {
     // 使用markdown渲染器渲染已显示的文本
     const vnode = renderMarkdown(displayedText.value);
     return vnode.props?.innerHTML || displayedText.value;
   } catch (error) {
-    console.error('[TypewriterText] Markdown渲染失败:', error);
+    console.error("[TypewriterText] Markdown渲染失败:", error);
     return displayedText.value;
   }
 });
@@ -75,21 +73,30 @@ const showCursor = computed(() => {
  * 开始打字机效果
  */
 const startTyping = (): void => {
+  console.log("[TypewriterText] 🎬 开始打字机效果", {
+    enabled: props.enabled,
+    text: props.text,
+    textLength: props.text?.length || 0,
+  });
+
   if (!props.enabled) {
     // 如果未启用打字机效果，直接显示全部内容
+    console.log("[TypewriterText] ⚠️ 打字机效果未启用，直接显示全部内容");
     displayedText.value = props.text;
-    emit('complete');
+    emit("complete");
     return;
   }
 
   // 重置状态
   currentIndex.value = 0;
-  displayedText.value = '';
+  displayedText.value = "";
   isTyping.value = true;
-  
+
+  console.log("[TypewriterText] ✅ 打字机状态已重置，开始打字");
+
   // 开始光标闪烁
   startCursorBlink();
-  
+
   // 开始逐字符显示
   typeNextCharacter();
 };
@@ -100,19 +107,30 @@ const startTyping = (): void => {
 const typeNextCharacter = (): void => {
   if (currentIndex.value >= props.text.length) {
     // 打字完成
+    console.log("[TypewriterText] 🎉 打字完成");
     isTyping.value = false;
-    emit('complete');
+    emit("complete");
     return;
   }
-  
+
   // 添加下一个字符
   displayedText.value = props.text.slice(0, currentIndex.value + 1);
   currentIndex.value++;
-  
+
   // 发送进度事件
   const progress = (currentIndex.value / props.text.length) * 100;
-  emit('progress', progress);
-  
+  emit("progress", progress);
+
+  // 每10个字符输出一次进度
+  if (currentIndex.value % 10 === 0 || currentIndex.value === 1) {
+    console.log("[TypewriterText] 📝 打字进度:", {
+      currentIndex: currentIndex.value,
+      totalLength: props.text.length,
+      progress: Math.round(progress) + "%",
+      currentChar: props.text[currentIndex.value - 1],
+    });
+  }
+
   // 设置下一次打字的定时器
   typewriterTimer.value = setTimeout(typeNextCharacter, props.speed);
 };
@@ -124,7 +142,7 @@ const startCursorBlink = (): void => {
   if (cursorTimer.value) {
     clearInterval(cursorTimer.value);
   }
-  
+
   cursorTimer.value = setInterval(() => {
     showCursorState.value = !showCursorState.value;
   }, 500);
@@ -159,8 +177,8 @@ const skipTyping = (): void => {
   cleanup();
   displayedText.value = props.text;
   currentIndex.value = props.text.length;
-  isTyping.value = false;
-  emit('complete');
+  isTyping.value = true;
+  emit("complete");
 };
 
 // 监听文本变化
@@ -172,9 +190,9 @@ watch(
       if (newText) {
         startTyping();
       } else {
-        displayedText.value = '';
+        displayedText.value = "";
         currentIndex.value = 0;
-        isTyping.value = false;
+        isTyping.value = true;
       }
     }
   },
@@ -193,11 +211,17 @@ watch(
 
 // 生命周期
 onMounted(() => {
-  console.log('[TypewriterText] 组件挂载');
+  console.log("[TypewriterText] 🚀 组件挂载", {
+    text: props.text,
+    speed: props.speed,
+    enabled: props.enabled,
+    showCursor: props.showCursor,
+    textLength: props.text?.length || 0,
+  });
 });
 
 onUnmounted(() => {
-  console.log('[TypewriterText] 组件卸载');
+  console.log("[TypewriterText] 组件卸载");
   cleanup();
 });
 
@@ -235,10 +259,12 @@ defineExpose({
 }
 
 @keyframes blink {
-  0%, 50% {
+  0%,
+  50% {
     opacity: 1;
   }
-  51%, 100% {
+  51%,
+  100% {
     opacity: 0;
   }
 }
@@ -253,7 +279,7 @@ defineExpose({
   background-color: #f5f5f5;
   padding: 2px 4px;
   border-radius: 3px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .typewriter-text :deep(pre) {

@@ -73,8 +73,19 @@ export function useMessages() {
   const updateMessageContent = (messageId: string, content: string): void => {
     const message = messages.value.find(m => m.id === messageId);
     if (message) {
+      const oldContent = message.content;
       message.content = content;
-      console.log('[useMessages] 更新消息内容:', messageId, content.slice(0, 50) + '...');
+      console.log('[useMessages] 更新消息内容详情:', {
+        messageId,
+        oldContentLength: oldContent.length,
+        newContentLength: content.length,
+        contentDiff: content.length - oldContent.length,
+        messageStatus: message.status,
+        messageLoading: message.loading,
+        newContentPreview: content.slice(-100) // 显示最新的100个字符
+      });
+    } else {
+      console.warn('[useMessages] 未找到要更新的消息:', messageId);
     }
   };
 

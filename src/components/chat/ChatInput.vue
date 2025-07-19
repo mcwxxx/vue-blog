@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Button, Space } from 'ant-design-vue';
-import { Sender, Suggestion, Attachments } from 'ant-design-x-vue';
+import { ref, computed } from "vue";
+import { Button, Space } from "ant-design-vue";
+import { Sender, Suggestion, Attachments } from "ant-design-x-vue";
 import {
   PaperClipOutlined,
   CloudUploadOutlined,
   ScheduleOutlined,
   AppstoreOutlined,
   AppstoreAddOutlined,
-} from '@ant-design/icons-vue';
-import { h } from 'vue';
-import { theme } from 'ant-design-vue';
+} from "@ant-design/icons-vue";
+import { h } from "vue";
+import { theme } from "ant-design-vue";
 
 // 定义 Props
 interface Props {
@@ -23,8 +23,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
-  placeholder: 'Ask or input / use skills',
-  suggestions: () => ['技能1', '技能2', '技能3'],
+  placeholder: "Ask or input / use skills",
+  suggestions: () => ["技能1", "技能2", "技能3"],
   allowSpeech: true,
   allowAttachments: true,
 });
@@ -33,13 +33,13 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   submit: [value: string];
   cancel: [];
-  'file-paste': [files: File[]];
-  'suggestion-select': [suggestion: string];
-  'action-click': [action: string];
+  "file-paste": [files: File[]];
+  "suggestion-select": [suggestion: string];
+  "action-click": [action: string];
 }>();
 
 // 响应式数据
-const inputValue = ref<string>('');
+const inputValue = ref<string>("");
 const attachmentsOpen = ref<boolean>(false);
 const files = ref<any[]>([]);
 const attachmentsRef = ref();
@@ -48,55 +48,55 @@ const attachmentsRef = ref();
 const handleSubmit = () => {
   if (!inputValue.value.trim()) return;
 
-  console.log('[ChatInput] 提交消息:', inputValue.value);
-  emit('submit', inputValue.value.trim());
-  inputValue.value = '';
+  console.log("[ChatInput] 提交消息:", inputValue.value);
+  emit("submit", inputValue.value.trim());
+  inputValue.value = "";
 };
 
 // 处理取消
 const handleCancel = () => {
-  console.log('[ChatInput] 取消请求');
-  emit('cancel');
+  console.log("[ChatInput] 取消请求");
+  emit("cancel");
 };
 
 // 处理文件粘贴
 const onPasteFile = (file: File, files: FileList) => {
-  console.log('[ChatInput] 粘贴文件:', file, files);
+  console.log("[ChatInput] 粘贴文件:", file, files);
   const fileArray = Array.from(files);
   for (const f of fileArray) {
     attachmentsRef.value?.upload(f);
   }
   attachmentsOpen.value = true;
-  emit('file-paste', fileArray);
+  emit("file-paste", fileArray);
 };
 
 // 处理建议选择
 const handleSuggestionSelect = (itemVal: string) => {
   inputValue.value = `[${itemVal}]:`;
-  emit('suggestion-select', itemVal);
+  emit("suggestion-select", itemVal);
 };
 
 // 处理快捷操作
 const handleQuickAction = (action: string, prompt: string) => {
-  console.log('[ChatInput] 快捷操作:', action, prompt);
-  emit('action-click', action);
-  emit('submit', prompt);
+  console.log("[ChatInput] 快捷操作:", action, prompt);
+  emit("action-click", action);
+  emit("submit", prompt);
 };
 
 // 样式
 const { token } = theme.useToken();
 const styles = computed(() => ({
   chatSend: {
-    padding: '12px',
+    padding: "12px",
   },
   sendAction: {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: '12px',
-    gap: '8px',
+    display: "flex",
+    alignItems: "center",
+    marginBottom: "12px",
+    gap: "8px",
   },
   speechButton: {
-    fontSize: '18px',
+    fontSize: "18px",
     color: `${token.value.colorText} !important`,
   },
 }));
@@ -107,7 +107,7 @@ defineExpose({
     // 可以添加聚焦输入框的逻辑
   },
   clear: () => {
-    inputValue.value = '';
+    inputValue.value = "";
   },
   setValue: (value: string) => {
     inputValue.value = value;
@@ -119,7 +119,7 @@ defineExpose({
 <template>
   <div :style="styles.chatSend">
     <!-- 快捷操作按钮 -->
-    <div :style="styles.sendAction">
+    <!-- <div :style="styles.sendAction">
       <Button
         :icon="h(ScheduleOutlined)"
         @click="
@@ -140,7 +140,7 @@ defineExpose({
         Components
       </Button>
       <Button :icon="h(AppstoreAddOutlined)"> More </Button>
-    </div>
+    </div> -->
 
     <!-- 输入框 -->
     <Suggestion

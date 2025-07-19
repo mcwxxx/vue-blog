@@ -254,6 +254,24 @@ watch(
   }
 );
 
+// 监听消息变化，自动滚动到底部
+watch(
+  () => messages.value,
+  () => {
+    scrollToBottom();
+  },
+  { deep: true }
+);
+
+// 监听bubbleItems变化，确保UI更新后滚动
+watch(
+  () => bubbleItems.value,
+  () => {
+    scrollToBottom();
+  },
+  { deep: true }
+);
+
 const { messages, onRequest, setMessages } = useXChat<BubbleDataType>({
   agent: agent.value,
   requestFallback: (_, { error }) => {
@@ -787,6 +805,7 @@ const roles: (typeof Bubble.List)["roles"] = {
   assistant: {
     placement: "start",
     messageRender: renderMarkdown,
+    typing: { step: 2, interval: 50 },
     loadingRender: () =>
       h(Space, null, [h(Spin, { size: "small" }), "正在思考中"]),
     footer: (info: any) =>
@@ -880,6 +899,8 @@ function handleRelatedQuestion(question: string) {
       <div :style="styles.chatHeader">
         <div :style="styles.headerTitle">✨ AI Copilot</div>
         <Space :size="0">
+          <!-- 暂时注释掉会话管理相关按钮，为后期功能拓展预留 -->
+          <!-- 
           <Button
             type="text"
             :icon="h(PlusOutlined)"
@@ -920,6 +941,7 @@ function handleRelatedQuestion(question: string) {
             :style="styles.headerButton"
             @click="setCopilotOpen(false)"
           />
+          -->
         </Space>
       </div>
       <!-- 对话区 - 消息列表 -->
