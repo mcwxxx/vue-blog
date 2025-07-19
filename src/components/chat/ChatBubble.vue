@@ -4,6 +4,7 @@ import { Button, Space, Spin, message } from 'ant-design-vue';
 import { Bubble } from 'ant-design-x-vue';
 import { ReloadOutlined, CopyOutlined } from '@ant-design/icons-vue';
 import { renderMarkdown } from '@/utils/markdown';
+import TypewriterText from './TypewriterText.vue';
 
 // 定义消息类型
 export interface BubbleDataType {
@@ -88,11 +89,44 @@ function onCopy(footerProps: string) {
     });
 }
 
+/**
+ * 渲染助手消息内容（带打字机效果）
+ * @param content 消息内容
+ * @param info 消息信息
+ * @returns VNode
+ */
+const renderAssistantMessage = (content: string, info: any) => {
+  // 检查是否是流式更新中的消息（有内容且状态为loading）
+  const isStreaming = info?.status === 'loading' && content && content.trim().length > 0;
+  
+  // 如果是流式更新且有内容，使用打字机效果
+  if (isStreaming) {
+    return h(TypewriterText, {
+      text: content,
+      speed: 20, // 稍微快一点的打字速度
+      enabled: true,
+      showCursor: true,
+      onComplete: () => {
+        console.log('[ChatBubble] 打字机效果完成:', content.slice(0, 50) + '...');
+      },
+      onProgress: (progress: number) => {
+        // 可以在这里添加进度处理逻辑
+        if (progress % 10 === 0) { // 每10%输出一次进度
+          console.log(`[ChatBubble] 打字进度: ${progress.toFixed(1)}%`);
+        }
+      },
+    });
+  }
+  
+  // 如果消息已完成或没有内容，直接渲染markdown
+  return renderMarkdown(content);
+};
+
 // 配置 Bubble.List 的 roles
 const roles: (typeof Bubble.List)['roles'] = {
   assistant: {
     placement: 'start',
-    messageRender: renderMarkdown,
+    messageRender: renderAssistantMessage,
     loadingRender: () =>
       h(Space, null, [h(Spin, { size: 'small' }), '正在思考中']),
     footer: (info: any) =>
