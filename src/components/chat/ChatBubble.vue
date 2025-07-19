@@ -37,13 +37,15 @@ const emit = defineEmits<{
 
 // 转换消息数据为 Bubble.List 所需格式
 const bubbleItems = computed(() => {
-  const items = props.messages.map((msg) => ({
-    key: msg.id,
-    content: msg.message.content,
-    role: msg.message.role,
-    status: msg.status,
-    loading: msg.status === 'loading',
-  }));
+  const items = props.messages
+    .filter((msg) => msg && msg.message) // 过滤无效消息
+    .map((msg) => ({
+      key: msg.id,
+      content: msg.message.content || '',
+      role: msg.message.role,
+      status: msg.status,
+      loading: msg.status === 'loading',
+    }));
 
   // 如果正在加载且没有加载状态的消息，添加一个
   if (props.loading && !items.some(item => item.loading)) {

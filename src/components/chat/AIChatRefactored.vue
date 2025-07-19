@@ -142,13 +142,16 @@ const welcomePrompts = ref<PromptItem[]>([
 ]);
 
 // 转换消息格式为气泡组件需要的格式
-const bubbleMessages = computed((): BubbleDataType[] => {
-  return messages.value.map((msg): BubbleDataType => ({
-    key: msg.id,
-    role: msg.role as 'user' | 'assistant',
-    content: msg.content,
+const bubbleMessages = computed((): MessageInfo<BubbleDataType>[] => {
+  return messages.value.map((msg): MessageInfo<BubbleDataType> => ({
+    id: msg.id,
+    message: {
+      content: msg.content,
+      role: msg.role as 'user' | 'assistant',
+      status: msg.status,
+      relatedQuestions: msg.relatedQuestions,
+    },
     status: msg.status,
-    timestamp: msg.timestamp,
   }));
 });
 
