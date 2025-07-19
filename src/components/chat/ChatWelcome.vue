@@ -26,9 +26,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // 定义 Emits
-const emit = defineEmits<{
+interface Emits {
   questionClick: [question: string];
-}>>();
+}
+
+const emit = defineEmits<Emits>();
 
 // 处理问题点击
 const handleQuestionClick = (info: any) => {

@@ -33,11 +33,14 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // 定义 Emits
-const emit = defineEmits<{
+interface Emits {
+  newConversation: [];
+  switchConversation: [conversationId: string];
+  closeChat: [];
   createSession: [];
-  changeSession: [sessionKey: string];
-  close: [];
-}>>();
+}
+
+const emit = defineEmits<Emits>();
 
 // 创建新会话
 const handleCreateSession = () => {
