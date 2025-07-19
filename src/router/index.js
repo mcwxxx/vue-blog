@@ -29,6 +29,11 @@ const routes = [
             meta: { menuKey: "ai-chat-test" },
           },
           {
+            path: "typewriter-test",
+            component: () => import("../views/TypewriterTest.vue"),
+            meta: { menuKey: "ai-typewriter-test" },
+          },
+          {
             path: "diagnosis",
             component: () => import("../views/AIDiagnosis.vue"),
             meta: { menuKey: "ai-diagnosis" },
