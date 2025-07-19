@@ -43,26 +43,17 @@ const bubbleItems = computed(() => {
       // 正确检查 loading 状态：检查 status 字段和 loading 字段
       const isLoading = msg.status === 'loading' || msg.loading === true || msg.message?.loading === true;
       const item = {
-        key: msg.id,
+        // 使用内容长度作为key的一部分，确保内容更新时重新渲染
+        key: `${msg.id}-${msg.message.content?.length || 0}`,
         content: msg.message.content || '',
         role: msg.message.role,
         status: msg.status,
         loading: isLoading,
-        // typing 效果由 roles 配置控制，这里不需要单独设置
+        // 对于助手消息，在有内容时启用打字机效果（包括流式更新过程中）
+        typing: msg.message.role === 'assistant' && msg.message.content && msg.message.content.length > 0,
         // 添加原始消息ID用于调试
         messageId: msg.id,
       };
-      
-      console.log('[ChatBubble] 转换消息项:', {
-        messageId: msg.id,
-        originalStatus: msg.status,
-        originalLoading: msg.loading,
-        messageLoading: msg.message?.loading,
-        contentLength: msg.message.content?.length || 0,
-        computedIsLoading: isLoading,
-        hasTyping: !!item.typing,
-        transformedItem: item
-      });
       
       return item;
     });
@@ -79,26 +70,18 @@ const bubbleItems = computed(() => {
     });
   }
 
-  console.groupCollapsed('ChatBubble - Bubble Items');
-  console.log('Original messages:', props.messages);
-  console.log('Transformed bubble items:', items);
-  console.log('Loading state:', props.loading);
-  console.log('Items with loading=true:', items.filter(item => item.loading));
-  console.log('Items with typing effect:', items.filter(item => item.typing));
-  console.groupEnd();
+
 
   return items;
 });
 
 // 重新生成处理
 function onRegenerate(footerProps: string) {
-  console.log('[ChatBubble] 重新生成:', footerProps);
   emit('regenerate', footerProps);
 }
 
 // 复制处理
 function onCopy(footerProps: string) {
-  console.log('[ChatBubble] 复制内容:', footerProps);
   navigator.clipboard
     .writeText(footerProps)
     .then(() => {
@@ -107,7 +90,6 @@ function onCopy(footerProps: string) {
     })
     .catch((err) => {
       message.error('复制失败');
-      console.error('[ChatBubble] 复制失败', err);
     });
 }
 
@@ -118,17 +100,15 @@ function onCopy(footerProps: string) {
  * @returns VNode
  */
 const renderAssistantMessage = (content: string, info: any) => {
-  console.log('[ChatBubble] 🔍 渲染助手消息:', {
-    messageId: info?.messageId || info?.key,
-    contentLength: content?.length || 0,
-    contentPreview: content?.slice(0, 100) + (content?.length > 100 ? '...' : ''),
-    status: info?.status,
-    loading: info?.loading,
-    typing: info?.typing
-  });
-  
-  // 直接渲染 markdown，打字机效果由 Bubble 组件的 typing 属性处理
-  return renderMarkdown(content);
+  // 确保每次内容更新时都重新渲染 markdown
+  // 这样在流式更新过程中也能正确解析 Markdown 格式
+  try {
+    return renderMarkdown(content);
+  } catch (error) {
+    console.error('Markdown渲染失败:', error);
+    // 如果渲染失败，返回纯文本
+    return h('div', { style: { whiteSpace: 'pre-wrap' } }, content);
+  }
 };
 
 // 配置 Bubble.List 的 roles
@@ -136,7 +116,30 @@ const roles = {
   assistant: {
     placement: 'start',
     messageRender: renderAssistantMessage,
-    typing: { step: 2, interval: 50 },
+    typing: { step: 1, interval: 30 }, // 调整打字机速度，更快更流畅
+    footer: (content: string, info: any) => {
+      console.log('[ChatBubble] Footer 渲染 - content:', content, 'info:', info);
+      // 只为非加载状态的 assistant 消息显示按钮
+      if (info?.loading || info?.status === 'loading') {
+        return null;
+      }
+      return h('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } }, [
+        h(Button, {
+          type: 'text',
+          size: 'small',
+          icon: h(ReloadOutlined),
+          title: '重新生成',
+          onClick: () => onRegenerate(content),
+        }),
+        h(Button, {
+          type: 'text',
+          size: 'small',
+          icon: h(CopyOutlined),
+          title: '复制内容',
+          onClick: () => onCopy(content),
+        }),
+      ]);
+    },
   },
   user: {
     placement: 'end',

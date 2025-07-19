@@ -30,7 +30,6 @@ export function useAbortController() {
     abortState.controller = new AbortController();
     abortState.isAborting = false;
     
-    console.log('[useAbortController] 创建新的 AbortController');
     return abortState.controller;
   };
 
@@ -39,11 +38,8 @@ export function useAbortController() {
    */
   const abortRequest = (): void => {
     if (abortState.controller && !abortState.isAborting) {
-      console.log('[useAbortController] 终止当前请求');
       abortState.controller.abort();
       abortState.isAborting = true;
-    } else {
-      console.warn('[useAbortController] 没有可终止的请求');
     }
   };
 
@@ -55,7 +51,6 @@ export function useAbortController() {
       abortState.controller.abort();
       abortState.controller = null;
       abortState.isAborting = false;
-      console.log('[useAbortController] 清理 AbortController');
     }
   };
 

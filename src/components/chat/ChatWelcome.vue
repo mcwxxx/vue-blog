@@ -35,7 +35,6 @@ const emit = defineEmits<Emits>();
 // 处理问题点击
 const handleQuestionClick = (info: any) => {
   const question = String(info?.data?.description || '');
-  console.log('[ChatWelcome] 点击问题:', question);
   emit('questionClick', question);
 };
 

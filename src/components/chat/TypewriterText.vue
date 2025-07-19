@@ -60,7 +60,6 @@ const displayedHtml = computed(() => {
     const vnode = renderMarkdown(displayedText.value);
     return vnode.props?.innerHTML || displayedText.value;
   } catch (error) {
-    console.error("[TypewriterText] Markdown渲染失败:", error);
     return displayedText.value;
   }
 });
@@ -73,15 +72,8 @@ const showCursor = computed(() => {
  * 开始打字机效果
  */
 const startTyping = (): void => {
-  console.log("[TypewriterText] 🎬 开始打字机效果", {
-    enabled: props.enabled,
-    text: props.text,
-    textLength: props.text?.length || 0,
-  });
-
   if (!props.enabled) {
     // 如果未启用打字机效果，直接显示全部内容
-    console.log("[TypewriterText] ⚠️ 打字机效果未启用，直接显示全部内容");
     displayedText.value = props.text;
     emit("complete");
     return;
@@ -91,8 +83,6 @@ const startTyping = (): void => {
   currentIndex.value = 0;
   displayedText.value = "";
   isTyping.value = true;
-
-  console.log("[TypewriterText] ✅ 打字机状态已重置，开始打字");
 
   // 开始光标闪烁
   startCursorBlink();
@@ -107,7 +97,6 @@ const startTyping = (): void => {
 const typeNextCharacter = (): void => {
   if (currentIndex.value >= props.text.length) {
     // 打字完成
-    console.log("[TypewriterText] 🎉 打字完成");
     isTyping.value = false;
     emit("complete");
     return;
@@ -120,16 +109,6 @@ const typeNextCharacter = (): void => {
   // 发送进度事件
   const progress = (currentIndex.value / props.text.length) * 100;
   emit("progress", progress);
-
-  // 每10个字符输出一次进度
-  if (currentIndex.value % 10 === 0 || currentIndex.value === 1) {
-    console.log("[TypewriterText] 📝 打字进度:", {
-      currentIndex: currentIndex.value,
-      totalLength: props.text.length,
-      progress: Math.round(progress) + "%",
-      currentChar: props.text[currentIndex.value - 1],
-    });
-  }
 
   // 设置下一次打字的定时器
   typewriterTimer.value = setTimeout(typeNextCharacter, props.speed);
@@ -186,13 +165,28 @@ watch(
   () => props.text,
   (newText, oldText) => {
     if (newText !== oldText) {
-      cleanup();
-      if (newText) {
-        startTyping();
-      } else {
+      // 如果新文本为空，重置状态
+      if (!newText) {
+        cleanup();
         displayedText.value = "";
         currentIndex.value = 0;
         isTyping.value = true;
+        return;
+      }
+      
+      // 如果新文本比旧文本长，且旧文本是新文本的前缀（流式更新场景）
+      if (oldText && newText.length > oldText.length && newText.startsWith(oldText)) {
+        // 流式更新：不重新开始，继续当前的打字机效果
+        // 如果当前没有在打字，启动打字机效果
+        if (!isTyping.value || !typewriterTimer.value) {
+          startCursorBlink();
+          isTyping.value = true;
+          typeNextCharacter();
+        }
+      } else {
+        // 文本完全变化：重新开始打字机效果
+        cleanup();
+        startTyping();
       }
     }
   },
@@ -211,17 +205,10 @@ watch(
 
 // 生命周期
 onMounted(() => {
-  console.log("[TypewriterText] 🚀 组件挂载", {
-    text: props.text,
-    speed: props.speed,
-    enabled: props.enabled,
-    showCursor: props.showCursor,
-    textLength: props.text?.length || 0,
-  });
+  // 组件挂载时的初始化已在 watch 中处理
 });
 
 onUnmounted(() => {
-  console.log("[TypewriterText] 组件卸载");
   cleanup();
 });
 

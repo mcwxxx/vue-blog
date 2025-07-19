@@ -40,7 +40,6 @@ export function useMessages() {
     };
     
     messages.value.push(message);
-    console.log('[useMessages] 添加用户消息:', message);
     return message;
   };
 
@@ -61,7 +60,6 @@ export function useMessages() {
     
     messages.value.push(message);
     currentStreamingMessageId.value = message.id;
-    console.log('[useMessages] 添加助手消息:', message);
     return message;
   };
 
@@ -73,19 +71,7 @@ export function useMessages() {
   const updateMessageContent = (messageId: string, content: string): void => {
     const message = messages.value.find(m => m.id === messageId);
     if (message) {
-      const oldContent = message.content;
       message.content = content;
-      console.log('[useMessages] 更新消息内容详情:', {
-        messageId,
-        oldContentLength: oldContent.length,
-        newContentLength: content.length,
-        contentDiff: content.length - oldContent.length,
-        messageStatus: message.status,
-        messageLoading: message.loading,
-        newContentPreview: content.slice(-100) // 显示最新的100个字符
-      });
-    } else {
-      console.warn('[useMessages] 未找到要更新的消息:', messageId);
     }
   };
 
@@ -111,10 +97,7 @@ export function useMessages() {
         currentStreamingMessageId.value = null;
       }
       
-      console.log('[useMessages] 完成消息:', messageId, {
-        contentLength: finalContent.length,
-        relatedQuestions: relatedQuestions?.length || 0
-      });
+
     }
   };
 
@@ -134,7 +117,7 @@ export function useMessages() {
         currentStreamingMessageId.value = null;
       }
       
-      console.log('[useMessages] 标记消息错误:', messageId, errorMessage);
+
     }
   };
 
@@ -146,7 +129,6 @@ export function useMessages() {
     const index = messages.value.findIndex(m => m.id === messageId);
     if (index > -1) {
       messages.value.splice(index, 1);
-      console.log('[useMessages] 删除消息:', messageId);
     }
   };
 
@@ -156,7 +138,6 @@ export function useMessages() {
   const clearContext = (): void => {
     messages.value = [];
     currentStreamingMessageId.value = null;
-    console.log('[useMessages] 清除上下文');
   };
 
   /**
@@ -185,8 +166,6 @@ export function useMessages() {
    * @param message 目标消息
    */
   const handleMessageAction = (action: MessageAction, message: ChatMessage): void => {
-    console.log('[useMessages] 处理消息操作:', action, message.id);
-    
     switch (action) {
       case 'copy':
         // 复制消息内容到剪贴板
@@ -200,8 +179,6 @@ export function useMessages() {
       case 'regenerate':
         // 重新生成逻辑需要在父组件中处理
         break;
-      default:
-        console.warn('[useMessages] 未知的消息操作:', action);
     }
   };
 

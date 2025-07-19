@@ -808,28 +808,35 @@ const roles: (typeof Bubble.List)["roles"] = {
     typing: { step: 2, interval: 50 },
     loadingRender: () =>
       h(Space, null, [h(Spin, { size: "small" }), "正在思考中"]),
-    footer: (info: any) =>
-      h("div", { style: { display: "flex", gap: "8px" } }, [
+    footer: (content: string, info: any) => {
+      console.log("[AIChat] Footer 渲染 - content:", content, "info:", info);
+      // 只为非加载状态的 assistant 消息显示按钮
+      if (info?.loading || info?.status === "loading") {
+        return null;
+      }
+      return h("div", { style: { display: "flex", gap: "8px", marginTop: "8px" } }, [
         h(Button, {
           type: "text",
           size: "small",
           icon: h(ReloadOutlined),
           title: "重新生成",
-          onClick: () => onRegenerate(info),
+          onClick: () => onRegenerate(content),
         }),
         h(Button, {
           type: "text",
           size: "small",
           icon: h(CopyOutlined),
           title: "复制内容",
-          onClick: () => onCopy(info),
+          onClick: () => onCopy(content),
         }),
-      ]),
+      ]);
+    },
   },
   user: { placement: "end" },
 };
 
-function onRegenerate(footerProps) {
+function onRegenerate(footerProps: string) {
+  console.log("[AIChat] 重新生成 footerProps:", footerProps);
   // footerProps 就是当前AI回复的内容（字符串）
   const idx = messages.value.findIndex(
     (m) => m.message.role === "assistant" && m.message.content === footerProps
@@ -850,7 +857,7 @@ function onRegenerate(footerProps) {
   }
 }
 
-function onCopy(footerProps: any) {
+function onCopy(footerProps: string) {
   console.log("[AIChat] 复制内容 footerProps:", footerProps);
   navigator.clipboard
     .writeText(footerProps)

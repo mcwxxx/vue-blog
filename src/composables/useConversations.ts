@@ -44,7 +44,6 @@ export function useConversations() {
     conversations.value.unshift(newConversation);
     activeConversationId.value = newConversation.key;
     
-    console.log('[useConversations] 创建新会话:', newConversation);
     return newConversation;
   };
 
@@ -56,9 +55,6 @@ export function useConversations() {
     const conversation = conversations.value.find(c => c.key === conversationId);
     if (conversation) {
       activeConversationId.value = conversationId;
-      console.log('[useConversations] 切换会话:', conversation.label);
-    } else {
-      console.warn('[useConversations] 会话不存在:', conversationId);
     }
   };
 
@@ -69,7 +65,6 @@ export function useConversations() {
   const deleteConversation = (conversationId: string): void => {
     const index = conversations.value.findIndex(c => c.key === conversationId);
     if (index === -1) {
-      console.warn('[useConversations] 要删除的会话不存在:', conversationId);
       return;
     }
     
@@ -87,8 +82,6 @@ export function useConversations() {
         createConversation();
       }
     }
-    
-    console.log('[useConversations] 删除会话:', deletedConversation.label);
   };
 
   /**
@@ -100,9 +93,6 @@ export function useConversations() {
     const conversation = conversations.value.find(c => c.key === conversationId);
     if (conversation) {
       conversation.label = newTitle;
-      console.log('[useConversations] 更新会话标题:', newTitle);
-    } else {
-      console.warn('[useConversations] 要更新的会话不存在:', conversationId);
     }
   };
 
@@ -116,8 +106,6 @@ export function useConversations() {
     
     // 创建一个新的默认会话
     createConversation();
-    
-    console.log('[useConversations] 清空所有会话');
   };
 
   /**
@@ -159,8 +147,6 @@ export function useConversations() {
         conversations.value = data.conversations || [];
         activeConversationId.value = data.activeId || null;
         conversationCounter.value = data.counter || 0;
-        
-        console.log('[useConversations] 从本地存储加载会话:', conversations.value.length);
       }
       
       // 如果没有会话，创建一个默认会话
@@ -168,7 +154,6 @@ export function useConversations() {
         createConversation();
       }
     } catch (error) {
-      console.error('[useConversations] 加载会话失败:', error);
       // 创建默认会话
       createConversation();
     }
@@ -185,9 +170,8 @@ export function useConversations() {
         counter: conversationCounter.value,
       };
       localStorage.setItem('chat_conversations', JSON.stringify(data));
-      console.log('[useConversations] 保存会话到本地存储');
     } catch (error) {
-      console.error('[useConversations] 保存会话失败:', error);
+      // 保存失败时静默处理
     }
   };
 
@@ -205,7 +189,6 @@ export function useConversations() {
    */
   const initializeConversations = (): void => {
     loadConversationsFromStorage();
-    console.log('[useConversations] 初始化完成');
   };
 
   /**
@@ -213,7 +196,6 @@ export function useConversations() {
    */
   const cleanupConversations = (): void => {
     saveConversationsToStorage();
-    console.log('[useConversations] 清理完成');
   };
 
   return {

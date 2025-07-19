@@ -63,7 +63,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
       const data = JSON.parse(jsonStr);
       return data.output?.text || '';
     } catch (e) {
-      console.warn('[useChat] 流式解析失败:', e);
       return '';
     }
   };
@@ -74,7 +73,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
    */
   const sendMessage = async (content: string): Promise<void> => {
     if (!content.trim()) {
-      console.warn('[useChat] 消息内容为空');
       return;
     }
 
@@ -95,7 +93,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
     isLoading.value = true;
     
     try {
-      console.log('[useChat] 发送消息:', content);
       
       // 构建请求数据（保持现有格式）
       const requestData = {
@@ -148,20 +145,11 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
           for (const line of lines) {
             if (!line.trim()) continue;
             
-            console.log('[useChat] 处理流式数据行:', line);
             const text = parseStreamChunk(line);
             if (text) {
               fullContent += text;
-              console.log('[useChat] 解析到文本片段:', {
-                textLength: text.length,
-                textContent: text,
-                fullContentLength: fullContent.length,
-                messageId: assistantMessage.id
-              });
               // 实时更新消息内容
               updateMessageContent(assistantMessage.id, fullContent);
-            } else {
-              console.log('[useChat] 未解析到文本内容，原始行:', line);
             }
           }
         }
@@ -170,18 +158,12 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
       // 检查是否被终止
       if (signal.aborted) {
         markMessageError(assistantMessage.id, '请求已被终止');
-        console.log('[useChat] 请求被用户终止');
         return;
       }
       
       // 处理最终结果
       const { main, questions } = extractRelatedQuestions(fullContent);
       completeMessage(assistantMessage.id, main, questions);
-      
-      console.log('[useChat] 消息发送完成:', {
-        contentLength: main.length,
-        relatedQuestions: questions.length
-      });
       
     } catch (err: any) {
       const errorMessage = err.name === 'AbortError' 
@@ -190,8 +172,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
       
       markMessageError(assistantMessage.id, errorMessage);
       error.value = errorMessage;
-      
-      console.error('[useChat] 发送消息失败:', err);
     } finally {
       isLoading.value = false;
     }
@@ -204,9 +184,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
     if (isLoading.value && hasActiveController()) {
       abortRequest();
       isLoading.value = false;
-      console.log('[useChat] 终止当前请求');
-    } else {
-      console.warn('[useChat] 没有正在进行的请求可以终止');
     }
   };
 
@@ -261,8 +238,6 @@ export function useChat(apiUrl: string = 'http://39.96.193.106:3000/api/dashscop
     
     // 清除错误状态
     error.value = null;
-    
-    console.log('[useChat] 清除聊天上下文');
   };
 
   // 监听终止状态变化
