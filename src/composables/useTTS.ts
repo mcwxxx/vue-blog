@@ -143,73 +143,101 @@ export function useTTS() {
   }
   
   // 朗读文本
+  // 添加音频缓存
+  const audioCache = new Map<string, Blob>();
+  const maxCacheSize = 10; // 最大缓存数量
+  
+  // 生成缓存键
+  function generateCacheKey(text: string, options: VoiceOptions): string {
+    const optionsStr = JSON.stringify(options);
+    return `${text.substring(0, 100)}_${btoa(optionsStr).substring(0, 20)}`;
+  }
+  
+  // 修改speak函数，添加缓存逻辑
   const speak = async (text: string, messageId?: string): Promise<void> => {
     try {
       // 验证输入
       if (!text || typeof text !== 'string') {
-        throw new Error('无效的文本内容')
+        throw new Error('无效的文本内容');
       }
-      
+  
       // 确保已连接
       if (!state.isConnected) {
-        await connect()
+        await connect();
       }
-      
+  
       // 停止当前播放
       if (state.isPlaying || state.isPaused) {
-        stop()
+        stop();
       }
-      
+  
       // 提取纯文本
-      const plainText = textExtractor.extractPlainText(text)
+      const plainText = textExtractor.extractPlainText(text);
       if (!textExtractor.validateText(plainText)) {
-        throw new Error('没有可朗读的有效文本内容')
+        throw new Error('没有可朗读的有效文本内容');
       }
-      
+  
       // 过滤敏感信息
-      const sanitizedText = textExtractor.sanitize(plainText)
-      
-      // 更新状态
-      state.isSynthesizing = true
-      state.currentMessageId = messageId || null
-      state.currentText = sanitizedText
-      state.error = null
-      
-      console.log('开始 TTS 合成:', { messageId, textLength: sanitizedText.length })
-      
-      // 发送 TTS 请求
-      const audioBlob = await ttsService.synthesize(sanitizedText, voiceOptions.value)
-      
+      const sanitizedText = textExtractor.sanitize(plainText);
+  
+      // 检查缓存
+      const cacheKey = generateCacheKey(sanitizedText, voiceOptions.value);
+      let audioBlob = audioCache.get(cacheKey);
+  
+      if (!audioBlob) {
+        // 缓存未命中，请求TTS服务
+        state.isSynthesizing = true;
+        state.currentMessageId = messageId || null;
+        state.currentText = sanitizedText;
+        state.error = null;
+  
+        console.log('开始 TTS 合成:', { messageId, textLength: sanitizedText.length, cached: false });
+  
+        audioBlob = await ttsService.synthesize(sanitizedText, voiceOptions.value);
+  
+        // 添加到缓存
+        if (audioCache.size >= maxCacheSize) {
+          // 删除最旧的缓存项
+          const firstKey = audioCache.keys().next().value;
+          audioCache.delete(firstKey);
+        }
+        audioCache.set(cacheKey, audioBlob);
+      } else {
+        console.log('使用缓存的音频:', { messageId, textLength: sanitizedText.length, cached: true });
+        state.currentMessageId = messageId || null;
+        state.currentText = sanitizedText;
+      }
+  
       // 检查是否被中断
       if (state.currentMessageId !== messageId) {
-        console.log('TTS 合成被中断')
-        return
+        console.log('TTS 播放被中断');
+        return;
       }
-      
-      state.isSynthesizing = false
-      
+  
+      state.isSynthesizing = false;
+  
       // 加载并播放音频
-      await audioPlayer.load(audioBlob)
-      await audioPlayer.play()
-      
-      state.isPlaying = true
-      state.isPaused = false
-      
-      console.log('TTS 播放开始')
-      
+      await audioPlayer.load(audioBlob);
+      await audioPlayer.play();
+  
+      state.isPlaying = true;
+      state.isPaused = false;
+  
+      console.log('TTS 播放开始');
+  
     } catch (error) {
-      state.isSynthesizing = false
-      state.isPlaying = false
-      state.isPaused = false
-      
-      const errorMessage = error instanceof Error ? error.message : 'TTS 朗读失败'
-      state.error = errorMessage
-      state.lastError = error instanceof Error ? error : new Error(errorMessage)
-      
-      console.error('TTS 朗读失败:', error)
-      throw error
+      state.isSynthesizing = false;
+      state.isPlaying = false;
+      state.isPaused = false;
+  
+      const errorMessage = error instanceof Error ? error.message : 'TTS 朗读失败';
+      state.error = errorMessage;
+      state.lastError = error instanceof Error ? error : new Error(errorMessage);
+  
+      console.error('TTS 朗读失败:', error);
+      throw error;
     }
-  }
+  };
   
   // 暂停播放
   const pause = (): void => {

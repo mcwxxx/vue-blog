@@ -168,7 +168,8 @@ export class TTSService {
 
     return new Promise((resolve, reject) => {
       const requestId = this.generateRequestId();
-      
+      console.log(`开始TTS请求，ID: ${requestId}，文本长度: ${text.length}`);
+
       // 设置请求超时
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(requestId);
@@ -185,6 +186,7 @@ export class TTSService {
 
       // 发送TTS请求（根据服务器协议格式）
       const request = {
+        id: requestId, // 添加请求ID
         text: text,
         options: {
           voice_type: options.voice_type || this.config.synthesis.voice,
@@ -294,37 +296,135 @@ export class TTSService {
   /**
    * 处理音频数据
    */
+  // 改进请求ID生成，包含更多上下文信息
+  private generateRequestId(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    return `tts_${timestamp}_${random}`;
+  }
+
+  // 修改音频数据处理逻辑
   private handleAudioData(blob: Blob): void {
-    // 根据实际协议，音频数据直接对应当前活跃的请求
-    // 如果有多个请求，取最新的一个（按时间顺序）
+    // 改进：使用请求头信息或者时间戳来匹配正确的请求
     const requests = Array.from(this.pendingRequests.entries());
-    if (requests.length > 0) {
-      // 取最新的请求（最后添加的）
-      const [requestId, request] = requests[requests.length - 1];
+    if (requests.length === 0) {
+      console.warn('收到音频数据但没有待处理的请求');
+      return;
+    }
+
+    // 优先匹配最近的请求，但要确保是正确的请求
+    let targetRequest: [string, any] | null = null;
+
+    // 如果只有一个请求，直接使用
+    if (requests.length === 1) {
+      targetRequest = requests[0];
+    } else {
+      // 多个请求时，使用最新的正在处理的请求
+      targetRequest = requests.find(([id, req]) => req.chunks.length === 0) || requests[requests.length - 1];
+    }
+
+    if (targetRequest) {
+      const [requestId, request] = targetRequest;
       request.chunks.push(blob);
-      
-      console.log(`收到音频数据: ${blob.size} 字节，当前总块数: ${request.chunks.length}`);
-      
-      // 清除之前的完成定时器（如果有的话）
+
+      console.log(`收到音频数据: ${blob.size} 字节，请求ID: ${requestId}，当前总块数: ${request.chunks.length}`);
+
+      // 设置完成定时器
       if ((request as any).completionTimer) {
         clearTimeout((request as any).completionTimer);
       }
-      
-      // 设置一个延迟完成定时器，如果在一定时间内没有收到更多音频数据，就认为传输完成
+
       (request as any).completionTimer = setTimeout(() => {
         if (this.pendingRequests.has(requestId) && request.chunks.length > 0) {
-          console.log('音频数据接收完成，自动完成请求');
+          console.log(`音频数据接收完成，请求ID: ${requestId}`);
           clearTimeout(request.timeout);
           const audioBlob = new Blob(request.chunks, { type: "audio/mp3" });
           request.resolve(audioBlob);
           this.pendingRequests.delete(requestId);
-          
+
           this.status = "connected";
           this.emit("statusChange", this.status);
           this.emit("synthesisCompleted", requestId);
         }
-      }, 1000); // 1秒内没有新数据就认为完成
+      }, 1000);
     }
+  }
+
+  /**
+   * 发送请求时添加更多日志
+   */
+  async synthesize(text: string, options: VoiceOptions = {
+    voice_type: "S_Z4CpYSGv1",
+    speed_ratio: 1.0,
+    volume_ratio: 1.0,
+    pitch_ratio: 1.0
+  }): Promise<Blob> {
+    if (this.status !== "connected") {
+      throw new Error(TTSErrorMessages[TTSErrorType.SERVICE_UNAVAILABLE]);
+    }
+
+    if (!text.trim()) {
+      throw new Error("文本内容不能为空");
+    }
+
+    return new Promise((resolve, reject) => {
+      const requestId = this.generateRequestId();
+      
+      // 设置请求超时
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error("请求超时"));
+      }, this.requestTimeout);
+
+      // 存储请求信息
+      this.pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        chunks: [],
+        timeout
+      });
+
+      // 发送TTS请求（根据服务器协议格式）
+      const request = {
+        text: text,
+        options: {
+          voice_type: options.voice_type || this.config.synthesis.voice,
+          speed_ratio: options.speed_ratio || this.config.synthesis.speed,
+          volume_ratio: options.volume_ratio || this.config.synthesis.volume,
+          pitch_ratio: options.pitch_ratio || this.config.synthesis.pitch
+        }
+      };
+
+      try {
+        // 检查WebSocket连接状态
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          clearTimeout(timeout);
+          this.pendingRequests.delete(requestId);
+          this.status = "disconnected";
+          this.emit("statusChange", this.status);
+          reject(new Error("WebSocket连接已断开"));
+          return;
+        }
+
+        this.status = "synthesizing";
+        this.emit("statusChange", this.status);
+        this.ws.send(JSON.stringify(request));
+      } catch (error) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(requestId);
+        
+        // 检查是否是连接问题
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          this.status = "disconnected";
+          this.emit("statusChange", this.status);
+          this.handleConnectionError(new Error("WebSocket连接在发送时断开"));
+        } else {
+          this.status = "connected";
+          this.emit("statusChange", this.status);
+        }
+        reject(error);
+      }
+    });
   }
 
   /**
