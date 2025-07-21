@@ -2,7 +2,7 @@
  * @Author: masi 2454023350@qq.com
  * @Date: 2025-06-25 15:30:17
  * @LastEditors: masi 2454023350@qq.com
- * @LastEditTime: 2025-06-26 16:08:47
+ * @LastEditTime: 2025-07-19 21:14:02
  * @FilePath: \figmamcp\vue-blog\src\router\index.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -38,8 +38,23 @@ const routes = [
             component: () => import("../views/AIDiagnosis.vue"),
             meta: { menuKey: "ai-diagnosis" },
           },
+          {
+            path: "tts-test",
+            component: () => import("../views/TTSTest.vue"),
+            meta: { menuKey: "ai-tts-test" },
+          },
+          {
+            path: "tts-websocket-demo",
+            component: () => import("../views/TTSWebSocketDemo.vue"),
+            meta: { menuKey: "ai-tts-websocket-demo" },
+          },
         ],
       },
+      //   {
+      //     path: "tts",
+      //     component: () => import("../views/TTSSimpleTest.vue"),
+      //     meta: { menuKey: "tts-test" },
+      //   },
       {
         path: "post/:id",
         component: () => import("../views/Post.vue"),
